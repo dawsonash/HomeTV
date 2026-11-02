@@ -15,6 +15,16 @@ public class AppRegistryTests
     }
 
     [Fact]
+    public void Games_tile_knows_its_window_so_home_can_close_it()
+    {
+        var games = AppRegistry.Load(Path.Combine(AppContext.BaseDirectory, "apps.json")).Find("games")!;
+
+        Assert.Equal("steamwebhelper", games.WindowProcess);
+        Assert.Equal("Big Picture", games.WindowTitle);
+        Assert.Equal("steam://close/bigpicture", games.CloseTarget);
+    }
+
+    [Fact]
     public void Duplicate_ids_are_rejected() =>
         Assert.Throws<InvalidOperationException>(() => AppRegistry.Parse("""
             [

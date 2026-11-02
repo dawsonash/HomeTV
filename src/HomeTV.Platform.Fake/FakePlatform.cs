@@ -34,6 +34,9 @@ public sealed class FakeAppHost(ILogger<FakeAppHost> logger) : IAppHost
     }
 
     public void OpenDesktop() => logger.LogInformation("Open desktop");
+
+    // Fake apps never exit on their own.
+    public event Action<string>? AppExited { add { } remove { } }
 }
 
 public sealed class FakePower(ILogger<FakePower> logger) : IPower

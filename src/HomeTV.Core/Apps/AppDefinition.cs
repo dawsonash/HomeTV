@@ -30,4 +30,19 @@ public sealed record AppDefinition
 
     /// <summary>Tile accent color (CSS color).</summary>
     public string? Color { get; init; }
+
+    /// <summary>
+    /// Process that owns the app's window, without ".exe". Defaults to <c>msedge</c> for <see cref="AppKind.Edge"/>.
+    /// Shell apps need it so Home can close them and HomeTV notices when they exit.
+    /// </summary>
+    public string? WindowProcess { get; init; }
+
+    /// <summary>
+    /// Text the app's window title contains. When set, an already-open matching window counts (e.g. Steam Big
+    /// Picture left open); when not, only a window that appears after launch does.
+    /// </summary>
+    public string? WindowTitle { get; init; }
+
+    /// <summary>URI or command that closes the app gracefully, e.g. <c>steam://close/bigpicture</c>. Otherwise Home closes its window.</summary>
+    public string? CloseTarget { get; init; }
 }

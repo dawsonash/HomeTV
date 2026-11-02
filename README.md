@@ -40,6 +40,14 @@ powershell -ExecutionPolicy Bypass -File scripts\deploy-local.ps1   # -SkipTests
 ```
 Phones need inbound TCP 8888 open; the script prints the firewall command if the rule is missing.
 
+The launcher opens in a WebView2 window. `HomeTV:Launcher` picks how: `Fullscreen` (default; the installed copy,
+Alt+F4 can't close it), `Windowed` (what `dotnet run` uses; closing it stops HomeTV, dev tools enabled), or `None`
+(no window; browse to `/launcher/` yourself). Override with e.g. `$env:HomeTV__Launcher = "None"`.
+
+Each launched app's window is tracked: Home closes it (or runs its `closeTarget`), and when it closes on its own
+the launcher comes back. Edge apps are found as a new `msedge` window; shell apps need `windowProcess`, and
+optionally `windowTitle`, in `config/apps.json`.
+
 ## Test
 ```bash
 dotnet test
@@ -53,8 +61,9 @@ scripts/deploy.sh   # uses the hometv alias in ~/.ssh/config
 ```
 
 ## Status
-Phase 2 (server, pairing, remote) is done. Next up:
-- **Phase 3**: WebView2 launcher window, Home closes the app, Steam exit detection.
+Phase 2 (server, pairing, remote) is done. Phase 3 is in progress:
+- **Phase 3**: WebView2 launcher window ✅, Home closes the app ✅, app exit detection ✅ (Edge verified;
+  Steam Big Picture's window title still to confirm with a signed-in Steam).
 - **Phase 4**: CEC, HDR toggle.
 - **Phase 5**: settings screen, watchdog.
 

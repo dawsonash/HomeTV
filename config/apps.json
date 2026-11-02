@@ -30,6 +30,9 @@
     "name": "Games",
     "kind": "shell",
     "target": "steam://open/bigpicture",
+    "windowProcess": "steamwebhelper",
+    "windowTitle": "Big Picture",
+    "closeTarget": "steam://close/bigpicture",
     "color": "#66c0f4"
   }
 ]

@@ -12,4 +12,10 @@ public interface IAppHost
 
     /// <summary>Maintenance escape hatch: starts Explorer on top of the HomeTV shell.</summary>
     void OpenDesktop();
+
+    /// <summary>
+    /// Raised with the app id when a launched app goes away on its own (the user quit it, it crashed, or its
+    /// window never appeared), so the launcher can come back. Not raised for <see cref="ReturnHomeAsync"/>.
+    /// </summary>
+    event Action<string>? AppExited;
 }

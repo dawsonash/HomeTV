@@ -18,8 +18,22 @@ public sealed class SessionState
 
     public void SetForeground(string? appId)
     {
-        ForegroundAppId = appId;
+        lock (_lock)
+            ForegroundAppId = appId;
         Publish(new StateEvent(appId));
+    }
+
+    /// <summary>Shows the launcher again if <paramref name="appId"/> is still the app in front (it exited on its own).</summary>
+    public bool ClearForeground(string appId)
+    {
+        lock (_lock)
+        {
+            if (!string.Equals(ForegroundAppId, appId, StringComparison.OrdinalIgnoreCase))
+                return false;
+            ForegroundAppId = null;
+        }
+        Publish(new StateEvent(null));
+        return true;
     }
 
     /// <summary>Remote D-pad presses go straight to the launcher page instead of through OS input injection.</summary>

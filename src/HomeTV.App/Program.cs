@@ -42,4 +42,36 @@ app.MapPairingEndpoints();
 app.MapRemoteEndpoints();
 app.MapLauncherEndpoints();
 
+// An app the user quits by other means (Alt+F4, the app's own exit, a crash) hands the TV back to the launcher.
+var session = app.Services.GetRequiredService<SessionState>();
+app.Services.GetRequiredService<HomeTV.Core.Platform.IAppHost>().AppExited += appId => session.ClearForeground(appId);
+
+#if WINDOWS
+// HomeTV:Launcher = Fullscreen (the TV), Windowed (development), or None (use a browser).
+var launcherMode = Enum.TryParse<LauncherMode>(app.Configuration["HomeTV:Launcher"], ignoreCase: true, out var mode)
+    ? mode
+    : LauncherMode.Fullscreen;
+
+await app.StartAsync();
+if (launcherMode == LauncherMode.None)
+{
+    await app.WaitForShutdownAsync();
+}
+else
+{
+    // Kestrel listens on 0.0.0.0; the launcher talks to it over loopback, which skips pairing.
+    var port = new Uri(app.Urls.First()).Port;
+    var launcherUrl = new Uri($"http://127.0.0.1:{port}/launcher/");
+    try
+    {
+        await app.Services.GetRequiredService<LauncherWindow>().RunAsync(launcherUrl, launcherMode, app.Lifetime.ApplicationStopping);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogCritical(ex, "Launcher window crashed");
+    }
+    await app.StopAsync();
+}
+#else
 app.Run();
+#endif

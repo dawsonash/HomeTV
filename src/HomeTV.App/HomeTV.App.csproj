@@ -12,6 +12,8 @@
   <!-- No console window on the TV: the box build is a GUI-subsystem exe (it becomes the shell). -->
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
     <OutputType>WinExe</OutputType>
+    <!-- Hosts the WebView2 launcher window (HomeTV.Platform.Windows/LauncherWindow.cs). -->
+    <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
   <ItemGroup>

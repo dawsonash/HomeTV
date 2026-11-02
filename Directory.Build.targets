@@ -1,0 +1,13 @@
+<Project>
+
+  <!--
+    The WebView2 package always references its WPF control too, which drags in a WindowsBase that conflicts with
+    the .NET 10 one (MSB3277). HomeTV only uses the WinForms control, so drop the WPF one.
+  -->
+  <Target Name="RemoveWebView2Wpf" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+    </ItemGroup>
+  </Target>
+
+</Project>
