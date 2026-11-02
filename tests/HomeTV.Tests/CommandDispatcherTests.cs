@@ -122,5 +122,6 @@ public class CommandDispatcherTests
         public void OpenDesktop() => Calls.Add("desktop");
         public event Action<string>? AppExited { add { } remove { } }
         public void Sleep() => Calls.Add("sleep");
+        public void Restart() => Calls.Add("restart");
     }
 }

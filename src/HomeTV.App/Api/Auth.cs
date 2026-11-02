@@ -11,6 +11,16 @@ internal static class Auth
     public static bool IsLocal(HttpContext context) =>
         context.Connection.RemoteIpAddress is { } ip && IPAddress.IsLoopback(ip);
 
+    /// <summary>
+    /// The launcher page itself, for actions only the TV may take (restart, unpair). Loopback alone isn't enough:
+    /// any web page open in a browser on the box could send requests to 127.0.0.1. Requiring a loopback Host
+    /// header defeats DNS rebinding, and a same-origin Origin defeats cross-site POSTs.
+    /// </summary>
+    public static bool IsLauncher(HttpContext context) =>
+        IsLocal(context)
+        && context.Request.Host.Host is "127.0.0.1" or "localhost" or "[::1]" or "::1"
+        && IsSameOrigin(context);
+
     public static PairedDevice? Device(HttpContext context) =>
         context.RequestServices.GetRequiredService<PairingService>().Authenticate(context.Request.Cookies[TokenCookie]);
 

@@ -43,7 +43,7 @@ internal static class PairingEndpoints
         // Revoking is done from the launcher's settings screen, i.e. physically at the TV.
         app.MapDelete("/api/devices/{id}", (string id, HttpContext context, PairingService pairing) =>
         {
-            if (!Auth.IsLocal(context))
+            if (!Auth.IsLauncher(context))
                 return Results.StatusCode(StatusCodes.Status403Forbidden);
             return pairing.Revoke(id) ? Results.NoContent() : Results.NotFound();
         });

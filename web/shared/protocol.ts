@@ -23,6 +23,23 @@ export type HubEvent =
   | { type: "pinShown"; pin: string; expiresAt: string }
   | { type: "pinHidden" };
 
+/** GET /api/system (launcher only). */
+export interface SystemInfo {
+  hostName: string;
+  addresses: string[];
+  port: number;
+  version: string | null;
+  /** True when a watchdog will start HomeTV again after "Restart HomeTV". */
+  supervised: boolean;
+}
+
+/** GET /api/devices. */
+export interface PairedDeviceInfo {
+  id: string;
+  name: string;
+  pairedAt: string;
+}
+
 export interface AppTile {
   id: string;
   name: string;

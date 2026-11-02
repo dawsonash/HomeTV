@@ -42,6 +42,8 @@ public sealed class FakeAppHost(ILogger<FakeAppHost> logger) : IAppHost
 public sealed class FakePower(ILogger<FakePower> logger) : IPower
 {
     public void Sleep() => logger.LogInformation("Sleep");
+
+    public void Restart() => logger.LogInformation("Restart PC");
 }
 
 public static class FakePlatformServiceCollectionExtensions

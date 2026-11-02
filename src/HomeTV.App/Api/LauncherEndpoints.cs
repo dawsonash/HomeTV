@@ -9,7 +9,7 @@ internal static class LauncherEndpoints
         {
             if (!context.WebSockets.IsWebSocketRequest)
                 return Results.BadRequest();
-            if (!Auth.IsLocal(context) || !Auth.IsSameOrigin(context))
+            if (!Auth.IsLauncher(context))
                 return Results.StatusCode(StatusCodes.Status403Forbidden);
 
             await HubSocket.RunAsync(context, _ => true, logger);

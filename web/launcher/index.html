@@ -12,9 +12,35 @@
     <span id="clock"></span>
   </header>
 
-  <main>
+  <main id="home">
     <div id="tiles" class="tiles" role="list"></div>
-    <p class="hint">Remote: open <strong id="remote-url"></strong> on your phone</p>
+    <p class="hint">Remote: open <strong class="remote-url"></strong> on your phone</p>
+  </main>
+
+  <main id="settings" class="settings" hidden>
+    <h1>Settings</h1>
+    <div class="columns">
+      <section>
+        <h2>Phone remote</h2>
+        <p class="muted">On the same Wi-Fi, open</p>
+        <p class="remote-url big"></p>
+        <p id="remote-alt" class="muted"></p>
+        <button data-focusable id="pair">Pair a new phone</button>
+
+        <h2>Paired phones</h2>
+        <ul id="devices" class="devices"></ul>
+      </section>
+
+      <section>
+        <h2>System</h2>
+        <button data-focusable id="sleep">Sleep</button>
+        <button data-focusable id="restart-app" data-confirm>Restart HomeTV</button>
+        <button data-focusable id="restart-pc" data-confirm>Restart PC</button>
+        <button data-focusable id="desktop" data-confirm>Desktop mode (maintenance)</button>
+        <p id="about" class="muted about"></p>
+      </section>
+    </div>
+    <p class="muted footer">↑ ↓ move · OK select · Back to return</p>
   </main>
 
   <div id="opening" class="overlay" hidden>
@@ -29,6 +55,7 @@
     </div>
   </div>
 
+  <div id="toast" class="toast" hidden></div>
   <div id="offline" class="badge" hidden>Reconnecting…</div>
 
   <script type="module" src="app.js"></script>

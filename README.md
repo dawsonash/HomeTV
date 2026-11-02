@@ -53,6 +53,11 @@ It restarts the app when it exits (backing off from 1s to 60s if it keeps crashi
 `/healthz` fails 3 checks in a row, which includes the launcher window freezing. Killing the supervisor kills the
 app too. Logs: `%LOCALAPPDATA%\HomeTV\logs\hometv.log`. `dotnet run` skips the watchdog (`HomeTV:Watchdog=false`).
 
+**Settings**: the last tile on the launcher. Shows the address phones should open, pairs a new phone, lists and
+removes paired phones, and has Sleep, Restart HomeTV, Restart PC and Desktop mode. Destructive actions need OK
+twice. Its endpoints (`/api/system*`, removing a device, `/ws/launcher`) only answer the launcher page itself:
+loopback connection, loopback `Host`, same-origin `Origin`, so other web pages open on the box can't use them.
+
 Home without the phone, from inside any app: **Ctrl+Alt+H**, the keyboard's **Home** (Browser Home) key, or
 **hold Back+Start** (View+Menu) on an Xbox-compatible controller for 1 second.
 
@@ -72,6 +77,6 @@ scripts/deploy.sh   # uses the hometv alias in ~/.ssh/config
 Phases 2 (server, pairing, remote) and 3 (WebView2 launcher window, Home closes the app, exit detection for
 Edge apps and Steam Big Picture) are done. Next up:
 - **Phase 4**: CEC, HDR toggle.
-- **Phase 5**: settings screen, watchdog ✅.
+- **Phase 5**: settings screen ✅, watchdog ✅.
 
 See the plan for details.

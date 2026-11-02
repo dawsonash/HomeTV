@@ -44,7 +44,12 @@ builder.Services
     .AddSingleton<IPairingStore>(new JsonFilePairingStore(Path.Combine(dataDir, "pairings.json")))
     .AddSingleton<PairingService>()
     .AddSingleton(AppRegistry.Load(appsPath))
-    .AddSingleton<CommandDispatcher>();
+    .AddSingleton<CommandDispatcher>()
+#if WINDOWS
+    .AddSingleton(new RuntimeInfo(Supervised: isWorker));
+#else
+    .AddSingleton(new RuntimeInfo(Supervised: false));
+#endif
 
 #if WINDOWS
 builder.Services.AddWindowsPlatform();
@@ -74,6 +79,7 @@ app.MapGet("/healthz", (HttpContext context) =>
 app.MapPairingEndpoints();
 app.MapRemoteEndpoints();
 app.MapLauncherEndpoints();
+app.MapSystemEndpoints();
 
 // An app the user quits by other means (Alt+F4, the app's own exit, a crash) hands the TV back to the launcher.
 var session = app.Services.GetRequiredService<SessionState>();

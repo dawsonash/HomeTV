@@ -93,3 +93,81 @@ main {
   font-size: 1.1vw;
 }
 .badge[hidden] { display: none; }
+
+/* ---- Settings tile ---- */
+.tile-settings {
+  --tile-color: #2a2d38;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  color: var(--muted);
+}
+.tile-settings.focused { color: var(--text); }
+.gear { font-size: 3vw; line-height: 1; margin-bottom: auto; }
+
+/* ---- Settings view ---- */
+main[hidden] { display: none; }
+
+.settings {
+  justify-content: flex-start;
+  padding-top: 3vh;
+}
+.settings h1 { font-size: 2.6vw; margin: 0 0 3vh; }
+.settings h2 { font-size: 1.3vw; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 3vh 0 1.2vh; }
+.settings h2:first-child { margin-top: 0; }
+.settings p { margin: 0.4vh 0; }
+.settings .big { font-size: 2.4vw; font-weight: 700; margin: 1vh 0; }
+
+.columns {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 5vw;
+  max-height: 62vh;
+  overflow: hidden;
+}
+
+.settings button {
+  display: block;
+  width: 100%;
+  margin: 1vh 0;
+  padding: 1.4vh 1.4vw;
+  border: 0;
+  border-radius: 0.8vw;
+  background: #20232d;
+  color: var(--text);
+  font: inherit;
+  font-size: 1.5vw;
+  text-align: left;
+  transition: background 100ms ease-out, box-shadow 100ms ease-out;
+}
+.settings button.focused {
+  background: #343949;
+  box-shadow: 0 0 0 0.3vw var(--focus);
+}
+.settings button.armed { background: #6b2128; }
+
+.devices { list-style: none; margin: 0; padding: 0; }
+.devices li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 1.5vw;
+  padding: 0.4vh 0;
+}
+.devices li.muted { display: block; }
+.devices button { width: auto; margin: 0; padding: 0.8vh 1.2vw; font-size: 1.2vw; }
+
+.about { margin-top: 3vh !important; }
+.footer { position: fixed; bottom: 4vh; left: 5vw; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 6vh;
+  transform: translateX(-50%);
+  padding: 1.2vh 2vw;
+  border-radius: 99px;
+  background: #2b3040;
+  font-size: 1.4vw;
+}
+.toast[hidden] { display: none; }
