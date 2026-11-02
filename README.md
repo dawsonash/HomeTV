@@ -28,6 +28,18 @@ dotnet run --project src/HomeTV.App -f net10.0
 - Fake platform actions (keys, launches, sleep) are printed to the console.
 - `npm run watch` in `web/` rebuilds the UI on save.
 
+## Develop on the box itself (Windows)
+When the TV PC is also the dev machine (needs Node and the .NET 10 SDK):
+```powershell
+# iterate from source with the real Windows platform (keys, launches and sleep really happen)
+cd web; npm install; npm run build; cd ..
+dotnet run --project src/HomeTV.App -f net10.0-windows
+
+# or build, test and (re)start an installed copy at C:\HomeTV\app
+powershell -ExecutionPolicy Bypass -File scripts\deploy-local.ps1   # -SkipTests, -NoStart
+```
+Phones need inbound TCP 8888 open; the script prints the firewall command if the rule is missing.
+
 ## Test
 ```bash
 dotnet test

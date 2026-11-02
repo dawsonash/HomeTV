@@ -1,8 +1,10 @@
 // Bundles the launcher and remote into the .NET app's wwwroot.
 import * as esbuild from "esbuild";
 import { cp, mkdir } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
-const outRoot = new URL("../src/HomeTV.App/wwwroot/", import.meta.url).pathname;
+// fileURLToPath, not URL.pathname: pathname gives "/C:/..." on Windows.
+const outRoot = fileURLToPath(new URL("../src/HomeTV.App/wwwroot/", import.meta.url));
 const pages = ["launcher", "remote"];
 const staticFiles = { launcher: ["index.html", "styles.css"], remote: ["index.html", "styles.css", "manifest.webmanifest"] };
 const watch = process.argv.includes("--watch");
