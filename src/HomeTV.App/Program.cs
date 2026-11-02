@@ -52,6 +52,10 @@ var launcherMode = Enum.TryParse<LauncherMode>(app.Configuration["HomeTV:Launche
     ? mode
     : LauncherMode.Fullscreen;
 
+// Getting home from the box itself, without the phone. Disposed (unregistered) by the DI container on shutdown.
+var dispatcher = app.Services.GetRequiredService<CommandDispatcher>();
+app.Services.GetRequiredService<HomeShortcuts>().Start(() => dispatcher.DispatchAsync(new HomeCommand()).GetAwaiter().GetResult());
+
 await app.StartAsync();
 if (launcherMode == LauncherMode.None)
 {

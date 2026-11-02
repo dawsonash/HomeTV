@@ -48,6 +48,9 @@ Each launched app's window is tracked: Home closes it (or runs its `closeTarget`
 the launcher comes back. Edge apps are found as a new `msedge` window; shell apps need `windowProcess`, and
 optionally `windowTitle`, in `config/apps.json`.
 
+Home without the phone, from inside any app: **Ctrl+Alt+H**, the keyboard's **Home** (Browser Home) key, or
+**hold Back+Start** (View+Menu) on an Xbox-compatible controller for 1 second.
+
 ## Test
 ```bash
 dotnet test
