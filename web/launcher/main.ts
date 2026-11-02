@@ -136,7 +136,21 @@ function renderTiles(): void {
   settings.role = "listitem";
   settings.innerHTML = `<span class="gear" aria-hidden="true">⚙</span>Settings`;
 
-  $("#tiles").replaceChildren(...tiles, settings);
+  const all = [...tiles, settings];
+  all.forEach((tile, i) => {
+    // Pointing selects, clicking opens: same as the D-pad.
+    tile.addEventListener("mouseenter", () => {
+      focusedTile = i;
+      renderFocus();
+    });
+    tile.addEventListener("click", () => {
+      focusedTile = i;
+      renderFocus();
+      activateTile();
+    });
+  });
+
+  $("#tiles").replaceChildren(...all);
   renderFocus();
 }
 
@@ -165,6 +179,28 @@ function showView(next: "home" | "settings"): void {
     void loadDevices();
   }
 }
+
+// Pointing at a settings button selects it, so the mouse and D-pad never disagree about focus.
+$("#settings").addEventListener("mouseover", (event) => {
+  const target = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-focusable]");
+  const index = target ? focusables().indexOf(target) : -1;
+  if (index >= 0 && index !== focusedSetting) {
+    disarm();
+    focusedSetting = index;
+    renderSettingFocus();
+  }
+});
+
+$("#settings-back").addEventListener("click", () => showView("home"));
+$("#pin-overlay").addEventListener("click", hidePin);
+
+// The pointer stays hidden on the TV until the mouse (or the phone's touchpad) actually moves.
+let pointerTimer: number | undefined;
+document.addEventListener("mousemove", () => {
+  document.body.classList.add("pointer");
+  clearTimeout(pointerTimer);
+  pointerTimer = window.setTimeout(() => document.body.classList.remove("pointer"), 3000);
+});
 
 function focusables(): HTMLButtonElement[] {
   return [...document.querySelectorAll<HTMLButtonElement>("#settings [data-focusable]")];

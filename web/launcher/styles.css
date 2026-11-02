@@ -171,3 +171,21 @@ main[hidden] { display: none; }
   font-size: 1.4vw;
 }
 .toast[hidden] { display: none; }
+
+/* ---- Mouse ---- */
+body.pointer, body.pointer * { cursor: default; }
+body.pointer .tile, body.pointer button { cursor: pointer; }
+
+.settings h1 { display: flex; align-items: center; gap: 1.2vw; }
+.settings button.back {
+  display: inline-grid;
+  place-items: center;
+  width: 3.4vw;
+  height: 3.4vw;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 1.8vw;
+  text-align: center;
+}
+.settings button.back:hover { background: #343949; }
