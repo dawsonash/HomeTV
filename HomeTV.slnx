@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/HomeTV.App/HomeTV.App.csproj" />
+    <Project Path="src/HomeTV.Core/HomeTV.Core.csproj" />
+    <Project Path="src/HomeTV.Platform.Fake/HomeTV.Platform.Fake.csproj" />
+    <Project Path="src/HomeTV.Platform.Windows/HomeTV.Platform.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HomeTV.Tests/HomeTV.Tests.csproj" />
+  </Folder>
+</Solution>

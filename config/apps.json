@@ -1,0 +1,35 @@
+[
+  {
+    "id": "prime",
+    "name": "Prime Video",
+    "kind": "edge",
+    "target": "https://www.primevideo.com",
+    "hdr": true,
+    "color": "#1399ff"
+  },
+  {
+    "id": "fubo",
+    "name": "Fubo",
+    "kind": "edge",
+    "target": "https://www.fubo.tv/welcome",
+    "hdr": false,
+    "color": "#fa4616"
+  },
+  {
+    "id": "youtube",
+    "name": "YouTube",
+    "kind": "edge",
+    "target": "https://www.youtube.com/tv",
+    "edgeProfile": "youtube",
+    "userAgent": "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.0 TV Safari/537.36",
+    "hdr": true,
+    "color": "#ff0033"
+  },
+  {
+    "id": "games",
+    "name": "Games",
+    "kind": "shell",
+    "target": "steam://open/bigpicture",
+    "color": "#66c0f4"
+  }
+]

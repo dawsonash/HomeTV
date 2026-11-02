@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0e0f13">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="HomeTV">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+  <title>HomeTV Remote</title>
+</head>
+<body>
+  <section id="pair" class="screen" hidden>
+    <h1>HomeTV</h1>
+    <p>Pair this phone with your TV.</p>
+    <button id="show-pin" class="primary">Show PIN on TV</button>
+    <form id="pair-form" hidden>
+      <input id="pin" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" aria-label="PIN shown on the TV">
+      <input id="device-name" maxlength="40" placeholder="Name this phone" aria-label="Phone name">
+      <button class="primary" type="submit">Pair</button>
+    </form>
+    <p id="pair-message" class="message" role="status"></p>
+  </section>
+
+  <section id="main" class="screen" hidden>
+    <header>
+      <span id="status-dot" class="dot" aria-hidden="true"></span>
+      <span id="now-showing">Home</span>
+      <button id="sleep" class="icon" aria-label="Sleep">⏻</button>
+    </header>
+
+    <div id="tab-remote" class="tab">
+      <div class="dpad">
+        <button class="dir up" data-key="up" data-repeat aria-label="Up">▲</button>
+        <button class="dir left" data-key="left" data-repeat aria-label="Left">◀</button>
+        <button class="ok" data-key="ok">OK</button>
+        <button class="dir right" data-key="right" data-repeat aria-label="Right">▶</button>
+        <button class="dir down" data-key="down" data-repeat aria-label="Down">▼</button>
+      </div>
+      <div class="row">
+        <button data-key="back">Back</button>
+        <button id="home" class="accent">Home</button>
+        <button data-key="playPause" aria-label="Play or pause">⏯</button>
+      </div>
+      <div class="row">
+        <button data-key="previous" aria-label="Previous">⏮</button>
+        <button data-key="next" aria-label="Next">⏭</button>
+      </div>
+      <div class="row">
+        <button data-key="volumeDown" data-repeat aria-label="Volume down">🔉</button>
+        <button data-key="mute" aria-label="Mute">🔇</button>
+        <button data-key="volumeUp" data-repeat aria-label="Volume up">🔊</button>
+      </div>
+    </div>
+
+    <div id="tab-touchpad" class="tab" hidden>
+      <div class="touch-wrap">
+        <div id="touchpad" aria-label="Touchpad: drag to move, tap to click"></div>
+        <div id="scrollstrip" aria-label="Scroll strip"></div>
+      </div>
+      <div class="row">
+        <button id="left-click">Click</button>
+        <button id="right-click">Right click</button>
+      </div>
+    </div>
+
+    <div id="tab-keyboard" class="tab" hidden>
+      <form id="text-form">
+        <input id="text" autocomplete="off" autocapitalize="off" placeholder="Type to search…" aria-label="Text to type on TV">
+        <button class="primary" type="submit">Send</button>
+      </form>
+      <div class="row">
+        <button data-key="backspace" data-repeat>⌫ Delete</button>
+        <button data-key="enter">Enter ⏎</button>
+      </div>
+    </div>
+
+    <div id="tab-apps" class="tab" hidden>
+      <div id="apps" class="apps"></div>
+      <button id="desktop" class="subtle">Desktop mode (maintenance)</button>
+    </div>
+
+    <nav>
+      <button data-tab="remote" class="active">Remote</button>
+      <button data-tab="touchpad">Touchpad</button>
+      <button data-tab="keyboard">Keyboard</button>
+      <button data-tab="apps">Apps</button>
+    </nav>
+  </section>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

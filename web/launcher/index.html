@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="styles.css">
+  <title>HomeTV</title>
+</head>
+<body>
+  <header>
+    <span class="brand">HomeTV</span>
+    <span id="clock"></span>
+  </header>
+
+  <main>
+    <div id="tiles" class="tiles" role="list"></div>
+    <p class="hint">Remote: open <strong id="remote-url"></strong> on your phone</p>
+  </main>
+
+  <div id="opening" class="overlay" hidden>
+    <p>Opening <span id="opening-name"></span>…</p>
+  </div>
+
+  <div id="pin-overlay" class="overlay" hidden>
+    <div class="pin-card">
+      <p>Pairing PIN</p>
+      <div id="pin" class="pin"></div>
+      <p id="pin-expiry" class="muted"></p>
+    </div>
+  </div>
+
+  <div id="offline" class="badge" hidden>Reconnecting…</div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

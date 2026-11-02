@@ -1,0 +1,9 @@
+{
+  "name": "HomeTV Remote",
+  "short_name": "HomeTV",
+  "start_url": "/remote/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e0f13",
+  "theme_color": "#0e0f13"
+}

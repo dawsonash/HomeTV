@@ -1,0 +1,95 @@
+/* Sized in vw/vh so the same layout reads from the couch at 1080p and 4K. */
+:root {
+  --bg: #0b0c10;
+  --text: #f2f3f7;
+  --muted: #8b90a0;
+  --focus: #ffffff;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 30% 0%, #1a1f2e 0%, var(--bg) 60%);
+  color: var(--text);
+  font: 1.6vw/1.3 system-ui, "Segoe UI", sans-serif;
+  cursor: none;
+  user-select: none;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 4vh 5vw 0;
+}
+.brand { font-size: 2.2vw; font-weight: 700; letter-spacing: 0.02em; }
+#clock { font-size: 2.2vw; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+main {
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 5vw;
+}
+
+.tiles {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 20vw;
+  gap: 2vw;
+}
+
+.tile {
+  aspect-ratio: 16 / 9;
+  border-radius: 1.2vw;
+  display: flex;
+  align-items: flex-end;
+  padding: 1.4vw;
+  font-size: 2vw;
+  font-weight: 700;
+  background: var(--tile-color, #2a2d38);
+  box-shadow: 0 0 0 0 var(--focus);
+  opacity: 0.75;
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out, opacity 120ms ease-out;
+}
+.tile.focused {
+  opacity: 1;
+  transform: scale(1.08);
+  box-shadow: 0 0 0 0.35vw var(--focus), 0 2vh 5vh rgb(0 0 0 / 0.5);
+}
+
+.hint { margin-top: 8vh; color: var(--muted); font-size: 1.3vw; }
+.hint strong { color: var(--text); }
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(8 9 12 / 0.92);
+  backdrop-filter: blur(1vw);
+  font-size: 2.4vw;
+}
+.overlay[hidden] { display: none; }
+
+.pin-card { text-align: center; }
+.pin-card p { margin: 0; }
+.pin { font-size: 9vw; font-weight: 700; letter-spacing: 0.15em; font-variant-numeric: tabular-nums; margin: 2vh 0; }
+.muted { color: var(--muted); font-size: 1.4vw; }
+
+.badge {
+  position: fixed;
+  right: 2vw;
+  bottom: 2vh;
+  padding: 0.6vw 1.2vw;
+  border-radius: 99px;
+  background: #3a1d20;
+  color: #ffb3b5;
+  font-size: 1.1vw;
+}
+.badge[hidden] { display: none; }
