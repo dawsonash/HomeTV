@@ -48,6 +48,11 @@ Each launched app's window is tracked: Home closes it (or runs its `closeTarget`
 the launcher comes back. Edge apps are found as a new `msedge` window; shell apps need `windowProcess`, and
 optionally `windowTitle`, in `config/apps.json`.
 
+**Watchdog**: the installed `HomeTV.exe` is a small supervisor that runs the real app as a child (`--worker`).
+It restarts the app when it exits (backing off from 1s to 60s if it keeps crashing) and kills/restarts it when
+`/healthz` fails 3 checks in a row, which includes the launcher window freezing. Killing the supervisor kills the
+app too. Logs: `%LOCALAPPDATA%\HomeTV\logs\hometv.log`. `dotnet run` skips the watchdog (`HomeTV:Watchdog=false`).
+
 Home without the phone, from inside any app: **Ctrl+Alt+H**, the keyboard's **Home** (Browser Home) key, or
 **hold Back+Start** (View+Menu) on an Xbox-compatible controller for 1 second.
 
@@ -67,6 +72,6 @@ scripts/deploy.sh   # uses the hometv alias in ~/.ssh/config
 Phases 2 (server, pairing, remote) and 3 (WebView2 launcher window, Home closes the app, exit detection for
 Edge apps and Steam Big Picture) are done. Next up:
 - **Phase 4**: CEC, HDR toggle.
-- **Phase 5**: settings screen, watchdog.
+- **Phase 5**: settings screen, watchdog ✅.
 
 See the plan for details.

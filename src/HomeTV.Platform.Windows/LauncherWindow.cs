@@ -26,7 +26,16 @@ public sealed class LauncherWindow(ILogger<LauncherWindow> logger)
     private static readonly string UserDataFolder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HomeTV", "launcher-webview");
 
+    /// <summary>The UI thread counts as hung once its heartbeat is this stale.</summary>
+    private const long HungAfterMs = 10_000;
+
     private LauncherForm? _form;
+
+    /// <summary>
+    /// False when the launcher's UI thread has stopped processing messages (frozen window). Feeds /healthz, so
+    /// the watchdog restarts HomeTV. True when there's no window.
+    /// </summary>
+    public bool IsResponsive => _form is not { } form || Environment.TickCount64 - form.LastHeartbeat < HungAfterMs;
 
     /// <summary>Shows the launcher; completes when the window closes (or <paramref name="stopping"/> fires).</summary>
     public Task RunAsync(Uri url, LauncherMode mode, CancellationToken stopping)
@@ -86,7 +95,11 @@ public sealed class LauncherWindow(ILogger<LauncherWindow> logger)
         private readonly LauncherMode _mode;
         private readonly ILogger _logger;
         private readonly WebView2 _web = new() { Dock = DockStyle.Fill, DefaultBackgroundColor = System.Drawing.Color.Black };
+        private readonly System.Windows.Forms.Timer _heartbeat = new() { Interval = 1000 };
+        private long _lastHeartbeat = Environment.TickCount64;
         private bool _shuttingDown;
+
+        public long LastHeartbeat => Interlocked.Read(ref _lastHeartbeat);
 
         public LauncherForm(Uri url, LauncherMode mode, ILogger logger)
         {
@@ -97,6 +110,10 @@ public sealed class LauncherWindow(ILogger<LauncherWindow> logger)
             Text = "HomeTV";
             BackColor = System.Drawing.Color.Black;
             Controls.Add(_web);
+
+            // Ticks only while the UI thread pumps messages, so a stale value means the window is frozen.
+            _heartbeat.Tick += (_, _) => Interlocked.Exchange(ref _lastHeartbeat, Environment.TickCount64);
+            _heartbeat.Start();
 
             if (mode == LauncherMode.Fullscreen)
             {
@@ -137,6 +154,7 @@ public sealed class LauncherWindow(ILogger<LauncherWindow> logger)
                 // The launcher never opens pages of its own.
                 _web.CoreWebView2.NewWindowRequested += (_, args) => args.Handled = true;
                 _web.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
+                _web.CoreWebView2.ProcessFailed += OnProcessFailed;
                 _web.CoreWebView2.Navigate(_url.ToString());
             }
             catch (Exception ex)
@@ -156,6 +174,36 @@ public sealed class LauncherWindow(ILogger<LauncherWindow> logger)
                 _web.CoreWebView2.Navigate(_url.ToString());
         }
 
+        private void OnProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs args)
+        {
+            if (_shuttingDown)
+                return;
+            switch (args.ProcessFailedKind)
+            {
+                case CoreWebView2ProcessFailedKind.RenderProcessExited:
+                case CoreWebView2ProcessFailedKind.RenderProcessUnresponsive:
+                    _logger.LogWarning("Launcher page process failed ({Kind}); reloading", args.ProcessFailedKind);
+                    _web.CoreWebView2.Reload();
+                    break;
+                case CoreWebView2ProcessFailedKind.BrowserProcessExited:
+                    // The WebView2 control is dead for good. Exit and let the watchdog start a fresh HomeTV.
+                    _logger.LogCritical("WebView2 browser process exited; restarting HomeTV");
+                    Environment.Exit(3);
+                    break;
+                default:
+                    _logger.LogWarning("WebView2 helper process failed ({Kind})", args.ProcessFailedKind);
+                    break;
+            }
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            // Started by the watchdog (a windowless background process), Windows may not give the launcher focus.
+            if (_mode == LauncherMode.Fullscreen)
+                TopLevelWindows.BringToFront(Handle);
+        }
+
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             // As the TV shell, Alt+F4 mustn't leave a black screen. Windows shutdown and HomeTV stopping still close it.
@@ -167,7 +215,10 @@ public sealed class LauncherWindow(ILogger<LauncherWindow> logger)
         protected override void Dispose(bool disposing)
         {
             if (disposing)
+            {
+                _heartbeat.Dispose();
                 _web.Dispose();
+            }
             base.Dispose(disposing);
         }
     }

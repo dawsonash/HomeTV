@@ -1,4 +1,5 @@
 using HomeTV.App.Api;
+using Microsoft.AspNetCore.Http;
 using HomeTV.Core.Apps;
 using HomeTV.Core.Pairing;
 using HomeTV.Core.Remote;
@@ -9,13 +10,33 @@ using HomeTV.Platform.Windows;
 using HomeTV.Platform.Fake;
 #endif
 
+#if WINDOWS
+var isWorker = args.Contains(Watchdog.WorkerFlag);
+args = args.Where(a => a != Watchdog.WorkerFlag).ToArray();
+#endif
+
 var builder = WebApplication.CreateBuilder(args);
 
 var dataDir = builder.Configuration["HomeTV:DataDir"]
     ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HomeTV");
 var appsPath = builder.Configuration["HomeTV:AppsPath"] ?? Path.Combine(AppContext.BaseDirectory, "apps.json");
 
-builder.WebHost.UseUrls(builder.Configuration["HomeTV:Urls"] ?? "http://0.0.0.0:8888");
+var urls = builder.Configuration["HomeTV:Urls"] ?? "http://0.0.0.0:8888";
+var port = BindingAddress.Parse(urls.Split(';')[0]).Port;
+builder.WebHost.UseUrls(urls);
+
+#if WINDOWS
+// The installed exe supervises a child copy of itself (HomeTV:Watchdog=false turns this off, as `dotnet run` does).
+if (!isWorker && builder.Configuration.GetValue("HomeTV:Watchdog", true))
+    return await Watchdog.RunAsync(args, port);
+#endif
+
+// One line per entry, timestamped: easier to read in the watchdog's log file.
+builder.Logging.AddSimpleConsole(o =>
+{
+    o.SingleLine = true;
+    o.TimestampFormat = "yyyy-MM-dd HH:mm:ss ";
+});
 
 builder.Services
     .AddSingleton(TimeProvider.System)
@@ -38,6 +59,18 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.MapGet("/", () => Results.Redirect("/remote/"));
+
+// Polled by the watchdog: answers only if the server is up and (on the box) the launcher window isn't frozen.
+app.MapGet("/healthz", (HttpContext context) =>
+{
+    if (!Auth.IsLocal(context))
+        return Results.NotFound();
+#if WINDOWS
+    if (!context.RequestServices.GetRequiredService<LauncherWindow>().IsResponsive)
+        return Results.Text("launcher not responding", statusCode: StatusCodes.Status503ServiceUnavailable);
+#endif
+    return Results.Text("ok");
+});
 app.MapPairingEndpoints();
 app.MapRemoteEndpoints();
 app.MapLauncherEndpoints();
@@ -64,7 +97,6 @@ if (launcherMode == LauncherMode.None)
 else
 {
     // Kestrel listens on 0.0.0.0; the launcher talks to it over loopback, which skips pairing.
-    var port = new Uri(app.Urls.First()).Port;
     var launcherUrl = new Uri($"http://127.0.0.1:{port}/launcher/");
     try
     {
@@ -79,3 +111,4 @@ else
 #else
 app.Run();
 #endif
+return 0;

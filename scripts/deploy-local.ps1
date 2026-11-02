@@ -100,7 +100,7 @@ while (-not $up -and (Get-Date) -lt $deadline) {
     try { Invoke-WebRequest "http://127.0.0.1:8888/launcher/" -UseBasicParsing -TimeoutSec 2 | Out-Null; $up = $true } catch { }
 }
 if (-not $up) {
-    throw "HomeTV didn't answer on port 8888. It has no console, so run '$exe' from a terminal to see errors (e.g. port already in use)."
+    throw "HomeTV didn't answer on port 8888. See its log: $env:LOCALAPPDATA\HomeTV\logs\hometv.log"
 }
 
 $ip = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
