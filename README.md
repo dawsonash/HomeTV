@@ -61,9 +61,8 @@ scripts/deploy.sh   # uses the hometv alias in ~/.ssh/config
 ```
 
 ## Status
-Phase 2 (server, pairing, remote) is done. Phase 3 is in progress:
-- **Phase 3**: WebView2 launcher window ✅, Home closes the app ✅, app exit detection ✅ (Edge verified;
-  Steam Big Picture's window title still to confirm with a signed-in Steam).
+Phases 2 (server, pairing, remote) and 3 (WebView2 launcher window, Home closes the app, exit detection for
+Edge apps and Steam Big Picture) are done. Next up:
 - **Phase 4**: CEC, HDR toggle.
 - **Phase 5**: settings screen, watchdog.
 
