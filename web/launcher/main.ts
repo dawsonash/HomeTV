@@ -1,18 +1,22 @@
-import type { AppTile, PairedDeviceInfo, RemoteKey, SystemInfo } from "../shared/protocol";
+import { POINTER_SPEED_MAX, POINTER_SPEED_MIN, type AppTile, type PairedDeviceInfo, type RemoteKey, type SystemInfo } from "../shared/protocol";
+import { qrSvg } from "../shared/qr";
 import { HubSocket } from "../shared/socket";
+import { startWidgets } from "./widgets";
 
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 
-/** Pseudo-app id of the Settings tile at the end of the row. */
-const SETTINGS = "__settings";
 /** How long a "press OK again to confirm" stays armed. */
 const CONFIRM_MS = 4000;
 
 let apps: AppTile[] = [];
 let focusedTile = 0;
+/** The round settings button in the header is selected instead of a tile. */
+let gearFocused = false;
 let focusedSetting = 0;
 let view: "home" | "settings" = "home";
 let system: SystemInfo | null = null;
+/** The address phones use, e.g. http://10.0.0.31:8888. Null until /api/system answers. */
+let remoteUrl: string | null = null;
 let pinTimer: number | undefined;
 let toastTimer: number | undefined;
 let armed: { button: HTMLButtonElement; label: string; timer: number } | null = null;
@@ -52,12 +56,21 @@ function handleKey(key: RemoteKey): void {
 }
 
 function homeKey(key: RemoteKey): void {
+  // Up from the tiles selects the settings button in the corner; down (or left) goes back.
+  if (gearFocused) {
+    if (key === "down" || key === "left") setGearFocus(false);
+    else if (key === "ok" || key === "enter") showView("settings");
+    return;
+  }
   switch (key) {
     case "left":
       moveTile(-1);
       break;
     case "right":
       moveTile(1);
+      break;
+    case "up":
+      setGearFocus(true);
       break;
     case "ok":
     case "enter":
@@ -66,7 +79,18 @@ function homeKey(key: RemoteKey): void {
   }
 }
 
+function setGearFocus(focused: boolean): void {
+  gearFocused = focused;
+  renderFocus();
+}
+
 function settingsKey(key: RemoteKey): void {
+  // Left/right adjust a focused slider instead of moving focus.
+  const focused = focusables()[focusedSetting];
+  if (focused instanceof HTMLInputElement && focused.type === "range" && (key === "left" || key === "right")) {
+    stepSlider(focused, key === "left" ? -1 : 1);
+    return;
+  }
   switch (key) {
     case "up":
     case "left":
@@ -106,23 +130,18 @@ document.addEventListener("keydown", (event) => {
 
 // ---- Home ----
 
-function tileIds(): string[] {
-  return [...apps.map((a) => a.id), SETTINGS];
-}
-
 function moveTile(by: number): void {
-  focusedTile = Math.max(0, Math.min(tileIds().length - 1, focusedTile + by));
+  focusedTile = Math.max(0, Math.min(apps.length - 1, focusedTile + by));
   renderFocus();
 }
 
 function activateTile(): void {
-  const id = tileIds()[focusedTile];
-  if (id === SETTINGS) showView("settings");
-  else if (id) socket.send({ type: "launch", app: id });
+  const id = apps[focusedTile]?.id;
+  if (id) socket.send({ type: "launch", app: id });
 }
 
 function renderTiles(): void {
-  const tiles = apps.map((app) => {
+  const all = apps.map((app) => {
     const tile = document.createElement("div");
     tile.className = "tile";
     tile.role = "listitem";
@@ -131,16 +150,11 @@ function renderTiles(): void {
     return tile;
   });
 
-  const settings = document.createElement("div");
-  settings.className = "tile tile-settings";
-  settings.role = "listitem";
-  settings.innerHTML = `<span class="gear" aria-hidden="true">⚙</span>Settings`;
-
-  const all = [...tiles, settings];
   all.forEach((tile, i) => {
     // Pointing selects, clicking opens: same as the D-pad.
     tile.addEventListener("mouseenter", () => {
       focusedTile = i;
+      gearFocused = false;
       renderFocus();
     });
     tile.addEventListener("click", () => {
@@ -155,8 +169,12 @@ function renderTiles(): void {
 }
 
 function renderFocus(): void {
-  document.querySelectorAll(".tile").forEach((tile, i) => tile.classList.toggle("focused", i === focusedTile));
+  document.querySelectorAll(".tile").forEach((tile, i) => tile.classList.toggle("focused", !gearFocused && i === focusedTile));
+  $("#settings-button").classList.toggle("focused", gearFocused);
 }
+
+$("#settings-button").addEventListener("mouseenter", () => setGearFocus(true));
+$("#settings-button").addEventListener("click", () => showView("settings"));
 
 // In production the app's own window covers the launcher; this shows while it starts.
 function showOpening(appId: string | null): void {
@@ -172,6 +190,8 @@ function showView(next: "home" | "settings"): void {
   disarm();
   $("#home").hidden = next !== "home";
   $("#settings").hidden = next !== "settings";
+  // The corner button only belongs on the home screen; Settings has its own back button.
+  $("#settings-button").hidden = next !== "home";
   if (next === "settings") {
     focusedSetting = 0;
     renderSettingFocus();
@@ -182,7 +202,7 @@ function showView(next: "home" | "settings"): void {
 
 // Pointing at a settings button selects it, so the mouse and D-pad never disagree about focus.
 $("#settings").addEventListener("mouseover", (event) => {
-  const target = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-focusable]");
+  const target = (event.target as HTMLElement).closest<HTMLElement>("[data-focusable]");
   const index = target ? focusables().indexOf(target) : -1;
   if (index >= 0 && index !== focusedSetting) {
     disarm();
@@ -202,8 +222,14 @@ document.addEventListener("mousemove", () => {
   pointerTimer = window.setTimeout(() => document.body.classList.remove("pointer"), 3000);
 });
 
-function focusables(): HTMLButtonElement[] {
-  return [...document.querySelectorAll<HTMLButtonElement>("#settings [data-focusable]")];
+function focusables(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>("#settings [data-focusable]")];
+}
+
+function stepSlider(slider: HTMLInputElement, direction: -1 | 1): void {
+  if (direction < 0) slider.stepDown();
+  else slider.stepUp();
+  slider.dispatchEvent(new Event("input"));
 }
 
 function moveSetting(by: number): void {
@@ -277,12 +303,18 @@ async function loadSystem(): Promise<void> {
   const address = system.addresses[0] ?? `${system.hostName.toLowerCase()}.local`;
   const url = `http://${address}:${system.port}`;
   document.querySelectorAll(".remote-url").forEach((el) => (el.textContent = url));
+  if (url !== remoteUrl) {
+    remoteUrl = url;
+    document.querySelectorAll("[data-qr=remote]").forEach((el) => el.replaceChildren(qrSvg(`${url}/`)));
+  }
   $("#remote-alt").textContent = system.addresses.length
     ? `or http://${system.hostName.toLowerCase()}.local:${system.port}`
     : "";
   $("#about").textContent = [`PC name: ${system.hostName}`, system.version && `HomeTV ${system.version}`, system.supervised ? "Watchdog on" : "Watchdog off"]
     .filter(Boolean)
     .join(" · ");
+  // Open-Meteo's free tier (CC BY 4.0) asks for credit; it lives here rather than on the home screen.
+  $("#credits").textContent = "Weather data by Open-Meteo.com";
 }
 
 async function loadDevices(): Promise<void> {
@@ -317,12 +349,57 @@ async function loadDevices(): Promise<void> {
           }),
         );
 
-        row.append(label, since, remove);
+        const info = document.createElement("div");
+        info.className = "device-info";
+        info.append(label, since);
+
+        row.append(info, speedControl(device), remove);
         return row;
       }),
     );
   }
   renderSettingFocus();
+}
+
+/** "Touchpad speed" slider for one phone. Saves shortly after the last change, so holding a key sends one request. */
+function speedControl(device: PairedDeviceInfo): HTMLElement {
+  const wrap = document.createElement("label");
+  wrap.className = "speed";
+
+  const caption = document.createElement("span");
+  caption.className = "muted";
+  caption.textContent = "Touchpad speed";
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.dataset.focusable = "";
+  slider.min = String(POINTER_SPEED_MIN);
+  slider.max = String(POINTER_SPEED_MAX);
+  slider.step = "0.1";
+  slider.value = String(device.pointerSpeed ?? 1);
+  slider.setAttribute("aria-label", `Touchpad speed for ${device.name || "Phone"}`);
+
+  const value = document.createElement("span");
+  value.className = "speed-value";
+  const show = () => (value.textContent = `${Number(slider.value).toFixed(1)}×`);
+  show();
+
+  let saveTimer: number | undefined;
+  slider.addEventListener("input", () => {
+    show();
+    clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(async () => {
+      const response = await fetch(`/api/devices/${encodeURIComponent(device.id)}/pointer-speed`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pointerSpeed: Number(slider.value) }),
+      });
+      if (!response.ok) toast("Couldn't save the touchpad speed");
+    }, 300);
+  });
+
+  wrap.append(caption, slider, value);
+  return wrap;
 }
 
 function post(path: string): Promise<Response> {
@@ -341,6 +418,8 @@ function toast(message: string): void {
 
 function showPin(pin: string, expiresAt: Date): void {
   $("#pin").textContent = pin;
+  // The remote reads ?pin= and pairs straight away, so one scan does the whole thing.
+  $("#pin-qr").replaceChildren(...(remoteUrl ? [qrSvg(`${remoteUrl}/remote/?pin=${encodeURIComponent(pin)}`)] : []));
   $("#pin-overlay").hidden = false;
   clearInterval(pinTimer);
   const tick = () => {
@@ -366,6 +445,7 @@ function tickClock(): void {
 tickClock();
 setInterval(tickClock, 10_000);
 void loadSystem();
+startWidgets($("#widgets"));
 
 fetch("/api/apps")
   .then((r) => r.json() as Promise<AppTile[]>)

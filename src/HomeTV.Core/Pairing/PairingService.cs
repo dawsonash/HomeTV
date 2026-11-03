@@ -129,6 +129,32 @@ public sealed class PairingService
             return _devices.FirstOrDefault(d => d.TokenHash == hash);
     }
 
+    public PairedDevice? Find(string deviceId)
+    {
+        lock (_lock)
+            return _devices.FirstOrDefault(d => d.Id == deviceId);
+    }
+
+    /// <summary>Sets a phone's touchpad sensitivity, clamped to the allowed range. False if it isn't paired.</summary>
+    public bool SetPointerSpeed(string deviceId, double speed)
+    {
+        if (!double.IsFinite(speed))
+            return false;
+
+        lock (_lock)
+        {
+            var index = _devices.FindIndex(d => d.Id == deviceId);
+            if (index < 0)
+                return false;
+            _devices[index] = _devices[index] with
+            {
+                PointerSpeed = Math.Round(Math.Clamp(speed, PairedDevice.MinPointerSpeed, PairedDevice.MaxPointerSpeed), 2),
+            };
+            _store.Save(_devices);
+            return true;
+        }
+    }
+
     public bool Revoke(string deviceId)
     {
         lock (_lock)

@@ -22,7 +22,7 @@ public sealed record AppDefinition
     /// <summary>Edge profile to use. Null means the user's default profile (where Prime/Fubo logins live).</summary>
     public string? EdgeProfile { get; init; }
 
-    /// <summary>User-agent override, e.g. a TV UA so youtube.com/tv serves the leanback UI.</summary>
+    /// <summary>User-agent override for sites that serve a different UI per device.</summary>
     public string? UserAgent { get; init; }
 
     /// <summary>Switch Windows HDR on while this app is in front.</summary>

@@ -19,20 +19,27 @@
     "id": "youtube",
     "name": "YouTube",
     "kind": "edge",
-    "target": "https://www.youtube.com/tv",
+    "target": "https://www.youtube.com",
     "edgeProfile": "youtube",
-    "userAgent": "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.0 TV Safari/537.36",
     "hdr": true,
     "color": "#ff0033"
   },
   {
     "id": "games",
-    "name": "Games",
+    "name": "Steam",
     "kind": "shell",
     "target": "steam://open/bigpicture",
     "windowProcess": "steamwebhelper",
     "windowTitle": "Big Picture",
     "closeTarget": "steam://close/bigpicture",
     "color": "#66c0f4"
+  },
+  {
+    "id": "spotify",
+    "name": "Spotify",
+    "kind": "shell",
+    "target": "spotify:",
+    "windowProcess": "Spotify",
+    "color": "#1db954"
   }
 ]

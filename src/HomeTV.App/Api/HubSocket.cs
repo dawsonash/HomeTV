@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using HomeTV.Core;
+using HomeTV.Core.Pairing;
 using HomeTV.Core.Remote;
 using HomeTV.Core.Session;
 
@@ -9,16 +10,19 @@ namespace HomeTV.App.Api;
 
 /// <summary>
 /// Runs one WebSocket connection: incoming text frames are dispatched as <see cref="RemoteCommand"/>s, and
-/// session events matching <paramref name="forward"/> are pushed back out.
+/// session events matching <paramref name="forward"/> are pushed back out. Pass <c>deviceId</c> for a paired
+/// phone so its touchpad moves are scaled by that phone's sensitivity.
 /// </summary>
 internal static class HubSocket
 {
     private const int MaxMessageBytes = 8 * 1024;
 
-    public static async Task RunAsync(HttpContext context, Func<HubEvent, bool> forward, ILogger logger)
+    public static async Task RunAsync(HttpContext context, Func<HubEvent, bool> forward, ILogger logger, string? deviceId = null)
     {
         var session = context.RequestServices.GetRequiredService<SessionState>();
         var dispatcher = context.RequestServices.GetRequiredService<CommandDispatcher>();
+        var pairing = context.RequestServices.GetRequiredService<PairingService>();
+        var scaler = new PointerScaler();
 
         using var socket = await context.WebSockets.AcceptWebSocketAsync();
         using var subscription = session.Subscribe();
@@ -40,7 +44,12 @@ internal static class HubSocket
         {
             while (await ReceiveTextAsync(socket, cts.Token) is { } message)
             {
-                if (RemoteCommand.TryParse(message) is { } command)
+                var command = RemoteCommand.TryParse(message);
+                // Looked up per move so a change made on the TV applies without the phone reconnecting.
+                if (command is MouseMoveCommand move && deviceId is not null && pairing.Find(deviceId) is { } device)
+                    command = scaler.Scale(move, device.PointerSpeed);
+
+                if (command is not null)
                     await dispatcher.DispatchAsync(command, cts.Token);
                 else
                     logger.LogWarning("Ignoring unparseable message");

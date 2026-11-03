@@ -15,7 +15,7 @@ public class CommandDispatcherTests
     public CommandDispatcherTests()
     {
         var apps = new AppRegistry([
-            new AppDefinition { Id = "youtube", Name = "YouTube", Kind = AppKind.Edge, Target = "https://www.youtube.com/tv" },
+            new AppDefinition { Id = "youtube", Name = "YouTube", Kind = AppKind.Edge, Target = "https://www.youtube.com" },
         ]);
         _dispatcher = new CommandDispatcher(_platform, _platform, _platform, apps, _session, NullLogger<CommandDispatcher>.Instance);
     }

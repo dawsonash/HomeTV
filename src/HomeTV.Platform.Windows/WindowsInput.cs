@@ -49,7 +49,7 @@ public sealed class WindowsInput(ILogger<WindowsInput> logger) : IInput
         RemoteKey.Left => (VK_LEFT, true),
         RemoteKey.Right => (VK_RIGHT, true),
         RemoteKey.Ok or RemoteKey.Enter => (VK_RETURN, false),
-        // Escape is "back" in youtube.com/tv and exits full-screen players on Prime/Fubo.
+        // Escape closes YouTube's full-screen player and exits full-screen players on Prime/Fubo.
         RemoteKey.Back => (VK_ESCAPE, false),
         RemoteKey.PlayPause => (VK_MEDIA_PLAY_PAUSE, false),
         RemoteKey.Next => (VK_MEDIA_NEXT_TRACK, false),

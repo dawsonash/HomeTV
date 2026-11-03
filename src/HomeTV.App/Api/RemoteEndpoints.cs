@@ -22,7 +22,8 @@ internal static class RemoteEndpoints
                 return Results.Unauthorized();
 
             // Remotes only need to know what's on screen; the launcher gets everything.
-            await HubSocket.RunAsync(context, evt => evt is StateEvent, logger);
+            // Device is null for an unpaired remote opened on the box itself; its moves go through unscaled.
+            await HubSocket.RunAsync(context, evt => evt is StateEvent, logger, Auth.Device(context)?.Id);
             return Results.Empty;
         });
     }

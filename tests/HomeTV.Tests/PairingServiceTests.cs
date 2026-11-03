@@ -117,6 +117,50 @@ public class PairingServiceTests
         Assert.IsType<PinHiddenEvent>(hidden);
     }
 
+    [Fact]
+    public void Pointer_speed_defaults_to_1_and_is_saved_clamped()
+    {
+        var device = _pairing.TryPair(RequestPin(), "phone").Device!;
+        Assert.Equal(1.0, device.PointerSpeed);
+
+        Assert.True(_pairing.SetPointerSpeed(device.Id, 1.5));
+        Assert.Equal(1.5, _store.Load().Single().PointerSpeed);
+
+        Assert.True(_pairing.SetPointerSpeed(device.Id, 99));
+        Assert.Equal(PairedDevice.MaxPointerSpeed, _pairing.Find(device.Id)!.PointerSpeed);
+
+        Assert.False(_pairing.SetPointerSpeed(device.Id, double.NaN));
+        Assert.False(_pairing.SetPointerSpeed("nope", 1));
+    }
+
+    [Fact]
+    public void Pairing_files_from_before_pointer_speed_load_as_1()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"hometv-pairing-{Guid.NewGuid():N}.json");
+        File.WriteAllText(path, """[{"id":"a","name":"phone","tokenHash":"x","pairedAt":"2026-11-01T00:00:00Z"}]""");
+        try
+        {
+            Assert.Equal(1.0, new JsonFilePairingStore(path).Load().Single().PointerSpeed);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Theory]
+    [InlineData(0.5)]
+    [InlineData(0.3)]
+    public void Pointer_scaler_keeps_slow_drags_moving(double speed)
+    {
+        var scaler = new HomeTV.Core.Remote.PointerScaler();
+        var total = 0;
+        for (var i = 0; i < 10; i++)
+            total += scaler.Scale(new HomeTV.Core.Remote.MouseMoveCommand(1, 0), speed).Dx;
+
+        Assert.Equal((int)Math.Round(10 * speed), total);
+    }
+
     private string RequestPin()
     {
         using var subscription = _session.Subscribe();

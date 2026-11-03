@@ -4,6 +4,7 @@ using HomeTV.Core.Apps;
 using HomeTV.Core.Pairing;
 using HomeTV.Core.Remote;
 using HomeTV.Core.Session;
+using HomeTV.Core.Widgets;
 #if WINDOWS
 using HomeTV.Platform.Windows;
 #else
@@ -20,6 +21,7 @@ var builder = WebApplication.CreateBuilder(args);
 var dataDir = builder.Configuration["HomeTV:DataDir"]
     ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HomeTV");
 var appsPath = builder.Configuration["HomeTV:AppsPath"] ?? Path.Combine(AppContext.BaseDirectory, "apps.json");
+var widgetsPath = builder.Configuration["HomeTV:WidgetsPath"] ?? Path.Combine(AppContext.BaseDirectory, "widgets.json");
 
 var urls = builder.Configuration["HomeTV:Urls"] ?? "http://0.0.0.0:8888";
 var port = BindingAddress.Parse(urls.Split(';')[0]).Port;
@@ -45,6 +47,12 @@ builder.Services
     .AddSingleton<PairingService>()
     .AddSingleton(AppRegistry.Load(appsPath))
     .AddSingleton<CommandDispatcher>()
+    .AddSingleton(WidgetConfig.Load(widgetsPath))
+    .AddSingleton(sp => new WidgetService(
+        sp.GetRequiredService<WidgetConfig>(),
+        new HttpClient { Timeout = TimeSpan.FromSeconds(10), DefaultRequestHeaders = { { "User-Agent", "HomeTV/1.0" } } },
+        sp.GetRequiredService<TimeProvider>(),
+        sp.GetRequiredService<ILogger<WidgetService>>()))
 #if WINDOWS
     .AddSingleton(new RuntimeInfo(Supervised: isWorker));
 #else
@@ -61,7 +69,12 @@ var app = builder.Build();
 
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(15) });
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    // Without this, browsers (the TV's WebView included) guess a freshness lifetime and keep showing the old
+    // launcher/remote after an update. Revalidating is a cheap 304 on the LAN thanks to the ETag.
+    OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "no-cache",
+});
 
 app.MapGet("/", () => Results.Redirect("/remote/"));
 

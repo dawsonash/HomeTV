@@ -5,7 +5,7 @@ const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>
 
 const REPEAT_DELAY_MS = 400;
 const REPEAT_INTERVAL_MS = 110;
-const POINTER_SPEED = 2.2;
+const POINTER_SPEED = 3.74; // 2.2 × 1.7
 const TAP_MAX_MS = 250;
 const TAP_MAX_TRAVEL = 8;
 
@@ -15,9 +15,22 @@ let apps: AppTile[] = [];
 const buzz = () => navigator.vibrate?.(8);
 
 async function start(): Promise<void> {
+  // The QR on the TV's PIN screen carries the PIN. Drop it from the address bar so it stays out of history.
+  const params = new URLSearchParams(location.search);
+  const pin = params.get("pin");
+  if (pin !== null) history.replaceState(null, "", location.pathname);
+
   const status = await fetch("/api/pair/status").then((r) => r.json() as Promise<{ paired: boolean }>);
-  if (status.paired) showMain();
-  else showPairing();
+  if (status.paired) {
+    showMain();
+  } else {
+    showPairing();
+    if (pin && /^[0-9]{6}$/.test(pin)) {
+      $("#pair-form").hidden = false;
+      setPairMessage("Pairing…");
+      void pair(pin);
+    }
+  }
 }
 
 // ---------- Pairing ----------
@@ -56,14 +69,20 @@ $("#show-pin").addEventListener("click", async () => {
   $<HTMLInputElement>("#pin").focus();
 });
 
-$<HTMLFormElement>("#pair-form").addEventListener("submit", async (event) => {
+$<HTMLFormElement>("#pair-form").addEventListener("submit", (event) => {
   event.preventDefault();
+  const input = $<HTMLInputElement>("#pin");
+  const pin = input.value;
+  input.value = "";
+  void pair(pin);
+});
+
+async function pair(pin: string): Promise<void> {
   const response = await fetch("/api/pair", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pin: $<HTMLInputElement>("#pin").value, deviceName: $<HTMLInputElement>("#device-name").value }),
+    body: JSON.stringify({ pin, deviceName: $<HTMLInputElement>("#device-name").value }),
   });
-  $<HTMLInputElement>("#pin").value = "";
   if (response.ok) {
     setPairMessage("");
     showMain();
@@ -73,7 +92,7 @@ $<HTMLFormElement>("#pair-form").addEventListener("submit", async (event) => {
     $("#pair-form").hidden = true;
     setPairMessage("That PIN expired. Ask for a new one.", true);
   }
-});
+}
 
 // ---------- Main remote ----------
 

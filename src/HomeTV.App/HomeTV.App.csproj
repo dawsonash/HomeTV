@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <Content Include="..\..\config\apps.json" Link="apps.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\config\widgets.json" Link="widgets.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('..\..\config\widgets.json')" />
   </ItemGroup>
 
 </Project>

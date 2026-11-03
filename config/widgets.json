@@ -1,0 +1,8 @@
+{
+  "weather": { "place": "Boulder", "latitude": 40.01, "longitude": -105.27, "units": "fahrenheit" },
+  "teams": [
+    { "sport": "basketball", "league": "nba", "team": "den" },
+    { "sport": "football", "league": "nfl", "team": "den" },
+    { "sport": "football", "league": "college-football", "team": "38" }
+  ]
+}

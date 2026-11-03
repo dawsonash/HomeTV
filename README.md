@@ -2,7 +2,8 @@
 
 An ad-free TV home screen for an old gaming PC, with a phone remote at `http://hometv.local:8888`.
 
-- **Launcher**: full-screen tiles (Prime Video, Fubo, YouTube, Games) that replace the Windows shell.
+- **Launcher**: full-screen tiles (Prime Video, Fubo, YouTube, Steam, Spotify) that replace the Windows shell,
+  with weather and sports widgets above them.
 - **Remote**: phone web app with a D-pad, touchpad, keyboard and app list. Phones pair with a PIN shown on the TV.
 - **Server**: .NET 10 + WebSockets. It injects input with Win32 `SendInput`, launches Edge app windows and Steam Big Picture, and puts the PC to sleep.
 
@@ -53,10 +54,15 @@ It restarts the app when it exits (backing off from 1s to 60s if it keeps crashi
 `/healthz` fails 3 checks in a row, which includes the launcher window freezing. Killing the supervisor kills the
 app too. Logs: `%LOCALAPPDATA%\HomeTV\logs\hometv.log`. `dotnet run` skips the watchdog (`HomeTV:Watchdog=false`).
 
-**Settings**: the last tile on the launcher. Shows the address phones should open, pairs a new phone, lists and
-removes paired phones, and has Sleep, Restart HomeTV, Restart PC and Desktop mode. Destructive actions need OK
-twice. Its endpoints (`/api/system*`, removing a device, `/ws/launcher`) only answer the launcher page itself:
+**Settings**: the round gear button in the launcher's top-right corner (press up from the tiles). Shows the address
+phones should open, pairs a new phone, lists and removes paired phones (each with its own touchpad speed), and has
+Sleep, Restart HomeTV, Restart PC and Desktop mode. Destructive actions need OK twice. Its endpoints (`/api/system*`, removing a device, `/ws/launcher`) only answer the launcher page itself:
 loopback connection, loopback `Host`, same-origin `Origin`, so other web pages open on the box can't use them.
+
+**Widgets**: `config/widgets.json` sets the weather location and up to 4 teams (ESPN slugs, e.g.
+`football / nfl / den`; college teams use ESPN's numeric id). Weather is from Open-Meteo, sports from ESPN's
+public but undocumented API, all fetched and cached by the box (`src/HomeTV.Core/Widgets`). Scores refresh every 30s
+during a game, otherwise every 10 minutes. Leave a section out to hide that card; changes need a restart.
 
 Home without the phone, from inside any app: **Ctrl+Alt+H**, the keyboard's **Home** (Browser Home) key, or
 **hold Back+Start** (View+Menu) on an Xbox-compatible controller for 1 second.
