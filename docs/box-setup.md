@@ -44,7 +44,7 @@ Also reserve a DHCP address for the box on your router, as a backup in case `hom
 ## 6. Phase 1 hardware tests (do these before building more)
 1. **CEC wake**: with the Pulse-Eight adapter on a second TV HDMI input, does turning the TV on wake the sleeping PC? Does `cec-client` "on 0" + "as" switch the TV to the **PC's** input?
 2. **Stream quality**: in Edge app mode, do Prime and Fubo reach ≥1080p (4K HDR for Prime)? Check with each player's stats overlay.
-3. **YouTube TV UI**: `youtube.com/tv` with the TV user agent in the `youtube` Edge profile. Does sign-in work, do arrow keys work, and does uBlock Origin Lite block ads?
+3. **YouTube**: the desktop site, full screen, in the `youtube` Edge profile. (YouTube now redirects `youtube.com/tv` to the desktop site on PCs whatever the user agent, after a ~10s "get the official app" screen.) Does sign-in work, and does uBlock Origin Lite block ads?
 4. **No Explorer**: with HomeTV as the shell, do Edge and Steam Big Picture behave?
 5. **Watermark**: does "Activate Windows" show over full-screen apps?
 

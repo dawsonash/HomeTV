@@ -61,7 +61,7 @@ Step "Publishing win-x64 to $staging"
 if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $staging, $app | Out-Null
 Invoke-Checked {
-    dotnet publish (Join-Path $root "src\HomeTV.App") -c Release -f net10.0-windows -r win-x64 --self-contained -o $staging --nologo -v quiet
+    dotnet publish (Join-Path $root "src\HomeTV.App") -c Release -f net10.0-windows10.0.19041.0 -r win-x64 --self-contained -o $staging --nologo -v quiet
 } "dotnet publish"
 
 Step "Stopping HomeTV"

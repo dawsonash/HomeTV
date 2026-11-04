@@ -1,0 +1,16 @@
+{
+  "outputs": [
+    {
+      "id": "soundbar",
+      "name": "Soundbar",
+      "icon": "soundbar",
+      "device": "HISENSE"
+    },
+    {
+      "id": "echo",
+      "name": "Echo Studio",
+      "icon": "speaker",
+      "device": "Echo Studio"
+    }
+  ]
+}

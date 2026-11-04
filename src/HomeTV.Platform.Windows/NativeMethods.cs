@@ -232,4 +232,70 @@ internal static class NativeMethods
         [MarshalAs(UnmanagedType.U1)] bool hibernate,
         [MarshalAs(UnmanagedType.U1)] bool forceCritical,
         [MarshalAs(UnmanagedType.U1)] bool disableWakeEvent);
+
+    // Window placement, for split screen (WindowsAppHost).
+    public const int SW_MAXIMIZE = 3;
+    public static readonly IntPtr HWND_TOP = IntPtr.Zero;
+    public const uint SWP_NOSIZE = 0x0001;
+    public const uint SWP_NOMOVE = 0x0002;
+    public const uint SWP_NOZORDER = 0x0004;
+    public const uint SWP_NOACTIVATE = 0x0010;
+    public const uint MONITOR_DEFAULTTOPRIMARY = 1;
+    public const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT
+    {
+        public int Left, Top, Right, Bottom;
+        public readonly int Width => Right - Left;
+        public readonly int Height => Bottom - Top;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    public static extern bool IsZoomed(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromWindow(IntPtr hWnd, uint flags);
+
+    [DllImport("user32.dll")]
+    public static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmGetWindowAttribute(IntPtr hWnd, int attribute, out RECT value, int size);
+
+    // What's under the pointer, for the phone's scroll strip (WindowsAppHost.CanScrollAtPointerAsync).
+    public const uint GA_ROOT = 2;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X, Y;
+    }
+
+    [DllImport("user32.dll")]
+    public static extern bool GetPhysicalCursorPos(out POINT point);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr WindowFromPhysicalPoint(POINT point);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
 }

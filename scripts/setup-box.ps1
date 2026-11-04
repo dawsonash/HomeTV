@@ -19,13 +19,18 @@
 
 .PARAMETER UnregisterShell
   Restores Explorer as the tv user's shell.
+
+.PARAMETER SkipAdBlock
+  Don't force-install uBlock Origin Lite and SponsorBlock into Edge. Remove them later by deleting their values
+  under HKLM\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist.
 #>
 param(
     [string]$TvUser = "tv",
     [string]$ComputerName = "hometv",
     [string]$InstallDir = "C:\HomeTV",
     [switch]$RegisterShell,
-    [switch]$UnregisterShell
+    [switch]$UnregisterShell,
+    [switch]$SkipAdBlock
 )
 
 $ErrorActionPreference = "Stop"
@@ -129,6 +134,31 @@ if (Get-Command winget -ErrorAction SilentlyContinue) {
     }
 }
 else { Write-Warning "winget not available in this session; install manually: $($packages -join ', ')" }
+
+if (-not $SkipAdBlock) {
+    # Force-installed through Edge policy, so they're in every HomeTV Edge profile (YouTube, Prime, Fubo) without
+    # anyone clicking through a store page, and can't be switched off from inside an app window. uBlock Origin Lite,
+    # not classic uBlock Origin: Edge is switching off Manifest V2 extensions like classic uBO during 2026.
+    # Chrome Web Store ids: Edge installs from there when given Google's update URL.
+    Step "Ad blocking in Edge: uBlock Origin Lite + SponsorBlock"
+    $chromeStore = "https://clients2.google.com/service/update2/crx"
+    $extensions = @{
+        "ddkjiahejlhfcafbddmgiahcphecmpfh" = "uBlock Origin Lite"
+        "mnjggcdmjocbbbhaepdhchncahnbgone" = "SponsorBlock for YouTube"
+    }
+    $forcelist = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist"
+    New-Item -Path $forcelist -Force | Out-Null
+    # Keep any entries already there (numbered values "1", "2", ...); add ours once.
+    $current = (Get-Item $forcelist).Property | ForEach-Object { (Get-ItemProperty $forcelist -Name $_).$_ }
+    $next = 1 + ((Get-Item $forcelist).Property | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ } | Measure-Object -Maximum).Maximum
+    foreach ($id in $extensions.Keys) {
+        if ($current | Where-Object { $_ -like "$id;*" }) { Write-Host "$($extensions[$id]) already set"; continue }
+        New-ItemProperty -Path $forcelist -Name "$next" -Value "$id;$chromeStore" -PropertyType String -Force | Out-Null
+        Write-Host "Added $($extensions[$id])"
+        $next++
+    }
+    Write-Host "Edge picks these up within a few minutes, or at its next start (edge://policy shows them)."
+}
 
 Step "Restart task (lets deploys restart HomeTV inside the $TvUser desktop session)"
 $restartScript = Join-Path $InstallDir "restart-hometv.ps1"

@@ -6,6 +6,8 @@ internal static class PairingEndpoints
 {
     public sealed record PairRequest(string Pin, string? DeviceName);
 
+    public sealed record PointerSpeedRequest(double PointerSpeed);
+
     public static void MapPairingEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/pair/status", (HttpContext context) =>
@@ -37,7 +39,7 @@ internal static class PairingEndpoints
 
         app.MapGet("/api/devices", (HttpContext context, PairingService pairing) =>
             Auth.IsAuthorized(context)
-                ? Results.Ok(pairing.Devices.Select(d => new { d.Id, d.Name, d.PairedAt }))
+                ? Results.Ok(pairing.Devices.Select(d => new { d.Id, d.Name, d.PairedAt, d.PointerSpeed }))
                 : Results.Unauthorized());
 
         // Revoking is done from the launcher's settings screen, i.e. physically at the TV.
@@ -46,6 +48,16 @@ internal static class PairingEndpoints
             if (!Auth.IsLauncher(context))
                 return Results.StatusCode(StatusCodes.Status403Forbidden);
             return pairing.Revoke(id) ? Results.NoContent() : Results.NotFound();
+        });
+
+        // Per-phone touchpad sensitivity, also set at the TV. Applies to the phone's next move, no reconnect.
+        app.MapPut("/api/devices/{id}/pointer-speed", (string id, PointerSpeedRequest request, HttpContext context, PairingService pairing) =>
+        {
+            if (!Auth.IsLauncher(context))
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            return pairing.SetPointerSpeed(id, request.PointerSpeed)
+                ? Results.Ok(new { pointerSpeed = pairing.Find(id)!.PointerSpeed })
+                : Results.NotFound();
         });
     }
 }

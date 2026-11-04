@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <!-- net10.0 runs on the Mac with fake platform services; net10.0-windows is what ships to the TV box. -->
-    <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
+    <!-- net10.0 runs on the Mac with fake platform services; net10.0-windows10.0.19041.0 is what ships to the TV box. -->
+    <TargetFrameworks>net10.0;net10.0-windows10.0.19041.0</TargetFrameworks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <!-- No console window on the TV: the box build is a GUI-subsystem exe (it becomes the shell). -->
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
     <OutputType>WinExe</OutputType>
     <!-- Hosts the WebView2 launcher window (HomeTV.Platform.Windows/LauncherWindow.cs). -->
     <UseWindowsForms>true</UseWindowsForms>
@@ -24,12 +24,14 @@
     <ProjectReference Include="..\HomeTV.Platform.Fake\HomeTV.Platform.Fake.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
     <ProjectReference Include="..\HomeTV.Platform.Windows\HomeTV.Platform.Windows.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="..\..\config\apps.json" Link="apps.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\config\widgets.json" Link="widgets.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('..\..\config\widgets.json')" />
+    <Content Include="..\..\config\audio.json" Link="audio.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('..\..\config\audio.json')" />
   </ItemGroup>
 
 </Project>

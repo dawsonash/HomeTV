@@ -7,28 +7,25 @@ public class SessionStateTests
     private readonly SessionState _session = new();
 
     [Fact]
-    public void App_exiting_brings_the_launcher_back()
+    public void Setting_apps_tells_clients_and_is_kept_for_new_ones()
     {
-        _session.SetForeground("prime");
         using var subscription = _session.Subscribe();
 
-        Assert.True(_session.ClearForeground("prime"));
+        _session.SetApps("youtube", ["youtube", "prime"], null);
 
-        Assert.True(_session.LauncherInFront);
+        Assert.Equal("youtube", _session.ForegroundAppId);
+        Assert.False(_session.LauncherInFront);
         Assert.True(subscription.Reader.TryRead(out var evt));
-        Assert.Null(Assert.IsType<StateEvent>(evt).ForegroundApp);
+        var state = Assert.IsType<StateEvent>(evt);
+        Assert.Equal(["youtube", "prime"], state.Running);
+        Assert.Null(state.Split);
+        Assert.Same(state, _session.State);
     }
 
     [Fact]
-    public void Stale_exit_of_a_replaced_app_is_ignored()
+    public void Starts_on_the_launcher_with_nothing_open()
     {
-        // Prime was open, then YouTube was launched; Prime's window closing late must not hide YouTube.
-        _session.SetForeground("youtube");
-        using var subscription = _session.Subscribe();
-
-        Assert.False(_session.ClearForeground("prime"));
-
-        Assert.Equal("youtube", _session.ForegroundAppId);
-        Assert.False(subscription.Reader.TryRead(out _));
+        Assert.True(_session.LauncherInFront);
+        Assert.Empty(_session.State.Running);
     }
 }

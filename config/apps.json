@@ -4,6 +4,8 @@
     "name": "Prime Video",
     "kind": "edge",
     "target": "https://www.primevideo.com",
+    "edgeProfile": "prime",
+    "resumePattern": "^https://www\\.primevideo\\.com/(.*/)?detail/",
     "hdr": true,
     "color": "#1399ff"
   },
@@ -12,6 +14,7 @@
     "name": "Fubo",
     "kind": "edge",
     "target": "https://www.fubo.tv/welcome",
+    "edgeProfile": "fubo",
     "hdr": false,
     "color": "#fa4616"
   },
@@ -19,20 +22,30 @@
     "id": "youtube",
     "name": "YouTube",
     "kind": "edge",
-    "target": "https://www.youtube.com/tv",
+    "target": "https://www.youtube.com",
     "edgeProfile": "youtube",
-    "userAgent": "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.0 TV Safari/537.36",
+    "resumePattern": "^https://www\\.youtube\\.com/watch\\?",
+    "resumeTimeParam": "t",
     "hdr": true,
     "color": "#ff0033"
   },
   {
     "id": "games",
-    "name": "Games",
+    "name": "Steam",
     "kind": "shell",
     "target": "steam://open/bigpicture",
     "windowProcess": "steamwebhelper",
     "windowTitle": "Big Picture",
     "closeTarget": "steam://close/bigpicture",
     "color": "#66c0f4"
+  },
+  {
+    "id": "spotify",
+    "name": "Spotify",
+    "kind": "shell",
+    "target": "spotify:",
+    "windowProcess": "Spotify",
+    "playInBackground": true,
+    "color": "#1db954"
   }
 ]

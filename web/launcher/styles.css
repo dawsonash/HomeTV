@@ -9,11 +9,13 @@
 
 * { box-sizing: border-box; }
 
+/* On <html> only: a background on <body> would paint over the photo layers behind it. */
+html { background: radial-gradient(ellipse at 30% 0%, #1a1f2e 0%, var(--bg) 60%) fixed; }
+
 html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: radial-gradient(ellipse at 30% 0%, #1a1f2e 0%, var(--bg) 60%);
   color: var(--text);
   font: 1.6vw/1.3 system-ui, "Segoe UI", sans-serif;
   cursor: none;
@@ -22,12 +24,76 @@ html, body {
 
 header {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  justify-content: flex-end; /* Clock and settings button, top right. */
+  align-items: center;
+  gap: 1.4vw;
   padding: 4vh 5vw 0;
 }
-.brand { font-size: 2.2vw; font-weight: 700; letter-spacing: 0.02em; }
 #clock { font-size: 2.2vw; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Round settings button next to the clock. Up from the tiles selects it. */
+.settings-button {
+  display: grid;
+  place-items: center;
+  width: 3.4vw;
+  height: 3.4vw;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.06);
+  color: var(--muted);
+  transition: background 120ms ease-out, color 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out,
+    opacity var(--ambient-fade) ease-out;
+}
+.settings-button[hidden] { display: none; }
+.settings-button svg { width: 1.8vw; height: 1.8vw; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.settings-button.focused {
+  color: var(--text);
+  background: rgb(255 255 255 / 0.14);
+  box-shadow: 0 0 0 0.3vw var(--focus);
+  transform: scale(1.08);
+}
+
+/* Audio output, top left (audio.ts): a pill of output icons, the playing one lit, then its name. */
+.audio-button {
+  margin-right: auto; /* Pushes the clock and settings button to the right. */
+  display: flex;
+  align-items: center;
+  gap: 0.3vw;
+  height: 3.4vw;
+  padding: 0 1.1vw 0 0.4vw;
+  border: 0;
+  border-radius: 99px;
+  background: rgb(255 255 255 / 0.06);
+  color: var(--muted);
+  font: inherit;
+  font-size: 1.2vw;
+  transition: background 120ms ease-out, color 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out,
+    opacity var(--ambient-fade) ease-out;
+}
+.audio-button[hidden] { display: none; }
+.audio-button.focused {
+  color: var(--text);
+  background: rgb(255 255 255 / 0.14);
+  box-shadow: 0 0 0 0.3vw var(--focus);
+  transform: scale(1.06);
+}
+.audio-icon {
+  display: grid;
+  place-items: center;
+  width: 2.6vw;
+  height: 2.6vw;
+  border-radius: 50%;
+  transition: background 200ms ease-out, color 200ms ease-out, opacity 200ms ease-out;
+}
+.audio-icon svg { width: 1.5vw; height: 1.5vw; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.audio-icon.current { background: var(--text); color: var(--bg); }
+.audio-icon.unavailable { opacity: 0.3; }
+.audio-label { margin-left: 0.4vw; white-space: nowrap; }
+/* Switching the TV takes a moment. */
+.audio-button.busy .audio-icon.current { animation: audio-busy 0.8s ease-in-out infinite alternate; }
+@keyframes audio-busy { to { opacity: 0.4; } }
+body.in-settings .audio-button { display: none; }
 
 main {
   height: 80vh;
@@ -40,7 +106,8 @@ main {
 .tiles {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 20vw;
+  /* Up to 20vw each, shrinking so every tile fits across the screen (five don't at full width). */
+  grid-auto-columns: minmax(0, 20vw);
   gap: 2vw;
 }
 
@@ -63,8 +130,19 @@ main {
   box-shadow: 0 0 0 0.35vw var(--focus), 0 2vh 5vh rgb(0 0 0 / 0.5);
 }
 
-.hint { margin-top: 8vh; color: var(--muted); font-size: 1.3vw; }
-.hint strong { color: var(--text); }
+.hint { margin-top: 8vh; display: flex; align-items: center; gap: 1.6vw; color: var(--muted); font-size: 1.3vw; line-height: 1.5; }
+.hint .qr-slot { width: 9vw; }
+/* With widgets above the tiles there's less room, so the pairing hint gets smaller. */
+.widgets:not([hidden]) ~ .hint { margin-top: 4vh; }
+.widgets:not([hidden]) ~ .hint .qr-slot { width: 6.5vw; }
+
+/* QR codes are drawn by shared/qr.ts with their own white quiet zone. */
+.qr-slot:empty { display: none; }
+.qr-slot svg { display: block; width: 100%; height: auto; border-radius: 0.6vw; }
+.settings-qr { width: 9vw; flex: none; }
+/* QR beside the address rather than under it, so the paired phones list fits on screen. */
+.remote-block { display: flex; align-items: center; justify-content: space-between; gap: 2vw; margin-bottom: 1vh; }
+#pin-qr { width: 14vw; margin: 0 auto 2vh; }
 
 .overlay {
   position: fixed;
@@ -94,16 +172,78 @@ main {
 }
 .badge[hidden] { display: none; }
 
-/* ---- Settings tile ---- */
-.tile-settings {
-  --tile-color: #2a2d38;
+/* ---- Home widgets (widgets.ts) ---- */
+.widgets { display: flex; gap: 2vw; margin-bottom: 4vh; }
+.widgets[hidden] { display: none; }
+.widget {
+  display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  align-items: flex-start;
-  color: var(--muted);
+  gap: 1.2vh;
+  padding: 1.2vw 1.8vw 1vw;
+  border-radius: 1.2vw;
+  background: rgb(255 255 255 / 0.05);
+  transition: background var(--ambient-fade) ease-out, backdrop-filter var(--ambient-fade) ease-out;
 }
-.tile-settings.focused { color: var(--text); }
-.gear { font-size: 3vw; line-height: 1; margin-bottom: auto; }
+/* Over a photo the cards are frosted glass, so they read as cards whatever the picture is. */
+body.has-photos .widget { background: rgb(16 18 24 / 0.5); backdrop-filter: blur(1.4vw); }
+.widget-footer { font-size: 0.9vw; margin-top: auto; }
+.widget-footer:empty { display: none; }
+
+.weather { flex: 0 0 auto; }
+.wx-now { display: flex; align-items: center; gap: 1.2vw; }
+.wx-icon { font-size: 3vw; line-height: 1; }
+.wx-temp { font-size: 3.6vw; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.wx-info { margin-left: 0.6vw; }
+.wx-label { font-size: 1.6vw; font-weight: 600; }
+.wx-hours { display: flex; justify-content: space-between; gap: 1.6vw; margin-top: 1vh; }
+.wx-hour { display: flex; flex-direction: column; align-items: center; gap: 0.2vh; font-size: 1.3vw; font-variant-numeric: tabular-nums; }
+.wx-hour .muted { font-size: 1.05vw; white-space: nowrap; }
+.wx-hour-icon { font-size: 1.5vw; line-height: 1.2; }
+.wx-rain { font-size: 0.95vw !important; }
+
+/* Scoreboard: each game is away over home, with the status column on the right. */
+.sports { flex: 0 0 30vw; min-width: 0; }
+.games { display: flex; flex-direction: column; }
+.game {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9vw;
+  align-items: center;
+  gap: 1.4vw;
+  padding: 0.5vh 0;
+}
+.game + .game { border-top: 1px solid rgb(255 255 255 / 0.08); }
+.side {
+  display: grid;
+  grid-template-columns: 2.2vw 4.4vw minmax(3.8vw, 1fr) 2.6vw;
+  align-items: center;
+  gap: 0.8vw;
+  height: 2.4vw;
+  font-variant-numeric: tabular-nums;
+}
+.side-abbr { font-size: 1.35vw; font-weight: 500; color: var(--muted); }
+.side.ours .side-abbr { font-weight: 700; color: var(--text); }
+.side-record { font-size: 1.05vw; }
+.side-score { font-size: 1.5vw; font-weight: 700; text-align: right; }
+.side.lost .side-score, .side.lost .side-abbr { color: var(--muted); font-weight: 500; }
+.game-status { display: flex; flex-direction: column; gap: 0.2vh; font-size: 1.15vw; text-align: right; }
+.game-status > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* .muted elsewhere sets its own (larger) size; status lines share one size. */
+.game-status .muted, .side-record.muted { font-size: inherit; }
+.side-record.muted { font-size: 1.05vw; white-space: nowrap; }
+.game-status .small { font-size: 0.95vw; }
+.team-logo { width: 2.2vw; height: 2.2vw; object-fit: contain; }
+.team-badge {
+  display: grid;
+  place-items: center;
+  height: 2vw;
+  border-radius: 0.4vw;
+  background: var(--team, #2a2d38);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.15);
+  font-size: 0.8vw;
+  font-weight: 700;
+}
+.team-badge.light { color: #111; }
+.live-dot { color: #ff5a5f; font-weight: 700; }
 
 /* ---- Settings view ---- */
 main[hidden] { display: none; }
@@ -124,6 +264,13 @@ main[hidden] { display: none; }
   gap: 5vw;
   max-height: 62vh;
   overflow: hidden;
+}
+/* Each column scrolls on its own (no visible bar) so D-pad focus can reach rows past the bottom, e.g. many phones. */
+.columns > section {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 0.4vw; /* Room for the focus ring. */
 }
 
 .settings button {
@@ -149,13 +296,36 @@ main[hidden] { display: none; }
 .devices { list-style: none; margin: 0; padding: 0; }
 .devices li {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) 22vw auto;
   align-items: center;
   gap: 1.5vw;
   padding: 0.4vh 0;
 }
 .devices li.muted { display: block; }
 .devices button { width: auto; margin: 0; padding: 0.8vh 1.2vw; font-size: 1.2vw; }
+.devices li + li { margin-top: 1.2vh; }
+
+.device-info { display: flex; flex-direction: column; min-width: 0; }
+.device-info > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.device-info .muted { font-size: 1.1vw; }
+
+/* Per-phone touchpad speed, between the phone's name and Remove. */
+.speed {
+  display: grid;
+  grid-template-columns: auto 1fr 3.5vw;
+  align-items: center;
+  gap: 1.2vw;
+  font-size: 1.1vw;
+}
+.speed input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--focus);
+  border-radius: 999px;
+  outline: none;
+}
+.speed input[type="range"].focused { box-shadow: 0 0 0 0.3vw var(--focus); }
+.speed-value { text-align: right; font-variant-numeric: tabular-nums; }
 
 .about { margin-top: 3vh !important; }
 .footer { position: fixed; bottom: 4vh; left: 5vw; }
@@ -189,3 +359,99 @@ body.pointer .tile, body.pointer button { cursor: pointer; }
   text-align: center;
 }
 .settings button.back:hover { background: #343949; }
+
+/* ---- Background photos (slideshow.ts) ---- */
+.backdrop { position: fixed; inset: 0; z-index: -2; overflow: hidden; }
+.photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 2.5s ease-in-out;
+}
+/* A slow drift while each photo is up (SLIDE_MS is 30s; this runs a little longer so it never stops on screen). */
+.photo.shown { opacity: 1; }
+.photo.drift { animation: drift 34s linear both; }
+@keyframes drift {
+  from { transform: scale(1.0); }
+  to { transform: scale(1.06); }
+}
+@media (prefers-reduced-motion: reduce) { .photo.drift { animation: none; } }
+
+/* Darkens the photo enough for the tiles; lifts when ambient so the photo is the point. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: rgb(8 9 12 / 0.55);
+  opacity: 0;
+  transition: opacity 2.5s ease-in-out, background var(--ambient-fade) ease-out;
+}
+body.has-photos .scrim { opacity: 1; }
+
+/* ---- Ambient: nothing pressed for IDLE_MS (main.ts) ----
+   Tiles, pairing hint and settings button fade out; the widgets lose their cards and sit flat on the photo, held
+   up by a text shadow. Slow to fade away, quick to come back. */
+:root { --ambient-fade: 300ms; }
+body.ambient { --ambient-fade: 2s; }
+
+.tiles, .hint { transition: opacity var(--ambient-fade) ease-out; }
+body.ambient .tiles,
+body.ambient .hint,
+body.ambient .settings-button,
+body.ambient .audio-button { opacity: 0; pointer-events: none; }
+
+body.ambient .widget { background: transparent; backdrop-filter: blur(0); }
+.widgets { transition: text-shadow var(--ambient-fade) ease-out; }
+body.ambient .widgets,
+body.ambient #clock { text-shadow: 0 0.1vw 0.8vw rgb(0 0 0 / 0.7), 0 0 0.2vw rgb(0 0 0 / 0.4); }
+body.ambient .scrim { background: rgb(8 9 12 / 0.2); }
+
+/* ---- Continue watching (continue.ts) ----
+   Below the app tiles; down from the tiles moves into it. It takes the pairing hint's place (the QR is in Settings too). */
+.continue { margin-top: 5vh; transition: opacity var(--ambient-fade) ease-out; }
+.continue[hidden] { display: none; }
+.continue:not([hidden]) ~ .hint { display: none; }
+.widgets:not([hidden]) ~ .continue { margin-top: 3.5vh; }
+.continue h2 { margin: 0 0 1.6vh; font-size: 1.3vw; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.continue-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 13vw);
+  gap: 1.6vw;
+}
+.card { opacity: 0.75; transition: transform 120ms ease-out, opacity 120ms ease-out; }
+.card.focused { opacity: 1; transform: scale(1.06); }
+.card-art {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 0.8vw;
+  overflow: hidden;
+  background: var(--tile-color, #2a2d38);
+  box-shadow: 0 0 0 0 var(--focus);
+  transition: box-shadow 120ms ease-out;
+}
+.card.focused .card-art { box-shadow: 0 0 0 0.3vw var(--focus), 0 1.5vh 4vh rgb(0 0 0 / 0.5); }
+.card-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* No picture from the page: the app's color and name stand in. */
+.card-art .app-name { position: absolute; left: 0.9vw; bottom: 0.9vw; font-size: 1.3vw; font-weight: 700; }
+.card-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 0.45vh; background: rgb(255 255 255 / 0.25); }
+.card-progress span { display: block; height: 100%; background: #ff3b3b; }
+.card-title {
+  margin-top: 1vh;
+  font-size: 1.1vw;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+body.ambient .continue { opacity: 0; pointer-events: none; }
+body.pointer .card { cursor: pointer; }
+
+/* Split screen: the launcher sits behind the tiles as a black backdrop (main.ts). */
+html:has(body.split), body.split { background: #000; }
+body.split > * { visibility: hidden; }

@@ -19,14 +19,23 @@ public sealed record AppDefinition
     /// <summary>The page URL for <see cref="AppKind.Edge"/>, or the URI/command for <see cref="AppKind.Shell"/>.</summary>
     public required string Target { get; init; }
 
-    /// <summary>Edge profile to use. Null means the user's default profile (where Prime/Fubo logins live).</summary>
+    /// <summary>
+    /// Edge profile to use. Null means the user's default profile. An app with its own profile gets a DevTools port,
+    /// which HomeTV needs to pause it in the background, tile and mute it in split screen, and read its pages.
+    /// </summary>
     public string? EdgeProfile { get; init; }
 
-    /// <summary>User-agent override, e.g. a TV UA so youtube.com/tv serves the leanback UI.</summary>
+    /// <summary>User-agent override for sites that serve a different UI per device.</summary>
     public string? UserAgent { get; init; }
 
     /// <summary>Switch Windows HDR on while this app is in front.</summary>
     public bool Hdr { get; init; }
+
+    /// <summary>
+    /// Keep playing when you leave the app for another one or for the launcher (music). Otherwise an Edge app's
+    /// video pauses when it goes into the background.
+    /// </summary>
+    public bool PlayInBackground { get; init; }
 
     /// <summary>Tile accent color (CSS color).</summary>
     public string? Color { get; init; }
@@ -45,4 +54,15 @@ public sealed record AppDefinition
 
     /// <summary>URI or command that closes the app gracefully, e.g. <c>steam://close/bigpicture</c>. Otherwise Home closes its window.</summary>
     public string? CloseTarget { get; init; }
+
+    /// <summary>
+    /// Edge apps only: a regex for page URLs worth offering under "Continue watching", e.g. <c>youtube\.com/watch</c>.
+    /// Pages are only remembered once a video has played on them. Leave unset to keep the app out of the row.
+    /// Needs <see cref="EdgeProfile"/>, because Edge only allows the DevTools port HomeTV reads URLs through on a
+    /// non-default profile.
+    /// </summary>
+    public string? ResumePattern { get; init; }
+
+    /// <summary>Query parameter that starts the video at a time in seconds when resuming, e.g. <c>t</c> for YouTube.</summary>
+    public string? ResumeTimeParam { get; init; }
 }

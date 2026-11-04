@@ -1,18 +1,31 @@
-import type { AppTile, PairedDeviceInfo, RemoteKey, SystemInfo } from "../shared/protocol";
+import { POINTER_SPEED_MAX, POINTER_SPEED_MIN, type AppTile, type ContinueEntry, type PairedDeviceInfo, type RemoteKey, type SystemInfo } from "../shared/protocol";
+import { cycleAudio, renderAudio } from "./audio";
+import { fetchContinue, renderContinue } from "./continue";
+import { qrSvg } from "../shared/qr";
 import { HubSocket } from "../shared/socket";
+import { startSlideshow } from "./slideshow";
+import { startWidgets } from "./widgets";
 
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 
-/** Pseudo-app id of the Settings tile at the end of the row. */
-const SETTINGS = "__settings";
 /** How long a "press OK again to confirm" stays armed. */
 const CONFIRM_MS = 4000;
+/** No remote, keyboard or mouse input for this long and the home screen goes ambient: just photos, clock and widgets. */
+const IDLE_MS = 5 * 60_000;
 
 let apps: AppTile[] = [];
 let focusedTile = 0;
+/** "Continue watching" cards, and whether the D-pad is in that row (below the tiles) rather than on the tiles. */
+let continueEntries: ContinueEntry[] = [];
+let inContinueRow = false;
+let focusedCard = 0;
+/** A header button is selected instead of a tile: the audio button (top left) or settings (top right). */
+let headerFocus: "audio" | "gear" | null = null;
 let focusedSetting = 0;
 let view: "home" | "settings" = "home";
 let system: SystemInfo | null = null;
+/** The address phones use, e.g. http://10.0.0.31:8888. Null until /api/system answers. */
+let remoteUrl: string | null = null;
 let pinTimer: number | undefined;
 let toastTimer: number | undefined;
 let armed: { button: HTMLButtonElement; label: string; timer: number } | null = null;
@@ -26,7 +39,18 @@ const socket = new HubSocket({
         handleKey(event.key);
         break;
       case "state":
-        showOpening(event.foregroundApp);
+        showOpening(event.split ? null : event.foregroundApp);
+        // Behind split-screen tiles: plain black, so any sliver the tiles leave reads as letterboxing.
+        document.body.classList.toggle("split", !!event.split);
+        // Back home: what was just watched is now first in the row.
+        if (event.foregroundApp === null) void loadContinue();
+        // Launched or closed an app (from the phone's app list, say): either way, someone's watching.
+        wake();
+        break;
+      case "audio":
+        renderAudio($("#audio-button"), event);
+        // A device that disappears (Bluetooth speaker off) mustn't strand the D-pad on a hidden button.
+        if (headerFocus === "audio" && !audioShown()) setHeaderFocus(null);
         break;
       case "pinShown":
         showPin(event.pin, new Date(event.expiresAt));
@@ -43,6 +67,8 @@ const socket = new HubSocket({
 // ---- Input ----
 
 function handleKey(key: RemoteKey): void {
+  // The first press only brings the tiles back, so a stray OK doesn't launch whatever happens to be selected.
+  if (wake()) return;
   if (!$("#pin-overlay").hidden) {
     if (key === "back") hidePin();
     return;
@@ -52,12 +78,38 @@ function handleKey(key: RemoteKey): void {
 }
 
 function homeKey(key: RemoteKey): void {
+  // Up from the tiles selects the nearer header button; left/right moves between the two, down goes back.
+  if (headerFocus) {
+    if (key === "down" || key === "back") setHeaderFocus(null);
+    else if (key === "left" && headerFocus === "gear") setHeaderFocus(audioShown() ? "audio" : null);
+    else if (key === "right" && headerFocus === "audio") setHeaderFocus("gear");
+    else if (key === "ok" || key === "enter") {
+      if (headerFocus === "gear") showView("settings");
+      else void cycleAudio($("#audio-button"), toast);
+    }
+    return;
+  }
+  if (inContinueRow) {
+    continueKey(key);
+    return;
+  }
   switch (key) {
+    case "down":
+      if (continueEntries.length > 0) {
+        inContinueRow = true;
+        // Start from the card under the selected tile, roughly.
+        focusedCard = Math.min(focusedTile, continueEntries.length - 1);
+        renderFocus();
+      }
+      break;
     case "left":
       moveTile(-1);
       break;
     case "right":
       moveTile(1);
+      break;
+    case "up":
+      setHeaderFocus(audioShown() && focusedTile < apps.length / 2 ? "audio" : "gear");
       break;
     case "ok":
     case "enter":
@@ -66,7 +118,70 @@ function homeKey(key: RemoteKey): void {
   }
 }
 
+function continueKey(key: RemoteKey): void {
+  switch (key) {
+    case "left":
+    case "right":
+      focusedCard = Math.max(0, Math.min(continueEntries.length - 1, focusedCard + (key === "left" ? -1 : 1)));
+      renderFocus();
+      break;
+    case "up":
+    case "back":
+      inContinueRow = false;
+      renderFocus();
+      break;
+    case "ok":
+    case "enter":
+      openCard(focusedCard);
+      break;
+  }
+}
+
+function openCard(index: number): void {
+  const entry = continueEntries[index];
+  if (entry) socket.send({ type: "launch", app: entry.appId, continue: entry.id });
+}
+
+async function loadContinue(): Promise<void> {
+  continueEntries = await fetchContinue();
+  if (continueEntries.length === 0) inContinueRow = false;
+  focusedCard = Math.min(focusedCard, Math.max(0, continueEntries.length - 1));
+  renderContinue(
+    $("#continue"),
+    $("#continue-row"),
+    continueEntries,
+    apps,
+    (i) => {
+      inContinueRow = true;
+      headerFocus = null;
+      focusedCard = i;
+      renderFocus();
+    },
+    (i) => {
+      focusedCard = i;
+      renderFocus();
+      openCard(i);
+    },
+  );
+  renderFocus();
+}
+
+function setHeaderFocus(focus: "audio" | "gear" | null): void {
+  headerFocus = focus;
+  renderFocus();
+}
+
+function audioShown(): boolean {
+  return !$("#audio-button").hidden;
+}
+
 function settingsKey(key: RemoteKey): void {
+  // Left/right adjust a focused slider instead of moving focus.
+  const focused = focusables()[focusedSetting];
+  if (focused instanceof HTMLInputElement && focused.type === "range" && (key === "left" || key === "right")) {
+    stepSlider(focused, key === "left" ? -1 : 1);
+    return;
+  }
   switch (key) {
     case "up":
     case "left":
@@ -106,23 +221,18 @@ document.addEventListener("keydown", (event) => {
 
 // ---- Home ----
 
-function tileIds(): string[] {
-  return [...apps.map((a) => a.id), SETTINGS];
-}
-
 function moveTile(by: number): void {
-  focusedTile = Math.max(0, Math.min(tileIds().length - 1, focusedTile + by));
+  focusedTile = Math.max(0, Math.min(apps.length - 1, focusedTile + by));
   renderFocus();
 }
 
 function activateTile(): void {
-  const id = tileIds()[focusedTile];
-  if (id === SETTINGS) showView("settings");
-  else if (id) socket.send({ type: "launch", app: id });
+  const id = apps[focusedTile]?.id;
+  if (id) socket.send({ type: "launch", app: id });
 }
 
 function renderTiles(): void {
-  const tiles = apps.map((app) => {
+  const all = apps.map((app) => {
     const tile = document.createElement("div");
     tile.className = "tile";
     tile.role = "listitem";
@@ -131,16 +241,12 @@ function renderTiles(): void {
     return tile;
   });
 
-  const settings = document.createElement("div");
-  settings.className = "tile tile-settings";
-  settings.role = "listitem";
-  settings.innerHTML = `<span class="gear" aria-hidden="true">⚙</span>Settings`;
-
-  const all = [...tiles, settings];
   all.forEach((tile, i) => {
     // Pointing selects, clicking opens: same as the D-pad.
     tile.addEventListener("mouseenter", () => {
       focusedTile = i;
+      headerFocus = null;
+      inContinueRow = false;
       renderFocus();
     });
     tile.addEventListener("click", () => {
@@ -155,8 +261,17 @@ function renderTiles(): void {
 }
 
 function renderFocus(): void {
-  document.querySelectorAll(".tile").forEach((tile, i) => tile.classList.toggle("focused", i === focusedTile));
+  const onTiles = !headerFocus && !inContinueRow;
+  document.querySelectorAll(".tile").forEach((tile, i) => tile.classList.toggle("focused", onTiles && i === focusedTile));
+  document.querySelectorAll(".card").forEach((card, i) => card.classList.toggle("focused", !headerFocus && inContinueRow && i === focusedCard));
+  $("#settings-button").classList.toggle("focused", headerFocus === "gear");
+  $("#audio-button").classList.toggle("focused", headerFocus === "audio");
 }
+
+$("#settings-button").addEventListener("mouseenter", () => setHeaderFocus("gear"));
+$("#audio-button").addEventListener("mouseenter", () => setHeaderFocus("audio"));
+$("#audio-button").addEventListener("click", () => void cycleAudio($("#audio-button"), toast));
+$("#settings-button").addEventListener("click", () => showView("settings"));
 
 // In production the app's own window covers the launcher; this shows while it starts.
 function showOpening(appId: string | null): void {
@@ -172,6 +287,11 @@ function showView(next: "home" | "settings"): void {
   disarm();
   $("#home").hidden = next !== "home";
   $("#settings").hidden = next !== "settings";
+  // The corner buttons only belong on the home screen; Settings has its own back button.
+  $("#settings-button").hidden = next !== "home";
+  document.body.classList.toggle("in-settings", next === "settings");
+  headerFocus = null;
+  renderFocus();
   if (next === "settings") {
     focusedSetting = 0;
     renderSettingFocus();
@@ -182,7 +302,7 @@ function showView(next: "home" | "settings"): void {
 
 // Pointing at a settings button selects it, so the mouse and D-pad never disagree about focus.
 $("#settings").addEventListener("mouseover", (event) => {
-  const target = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-focusable]");
+  const target = (event.target as HTMLElement).closest<HTMLElement>("[data-focusable]");
   const index = target ? focusables().indexOf(target) : -1;
   if (index >= 0 && index !== focusedSetting) {
     disarm();
@@ -196,14 +316,27 @@ $("#pin-overlay").addEventListener("click", hidePin);
 
 // The pointer stays hidden on the TV until the mouse (or the phone's touchpad) actually moves.
 let pointerTimer: number | undefined;
-document.addEventListener("mousemove", () => {
+let lastPointer = "";
+document.addEventListener("mousemove", (event) => {
+  // Chromium sends a mousemove without any movement when the element under a still cursor changes (as tiles fade
+  // out going ambient), so only real movement counts.
+  const at = `${event.screenX},${event.screenY}`;
+  if (at === lastPointer) return;
+  lastPointer = at;
+  wake();
   document.body.classList.add("pointer");
   clearTimeout(pointerTimer);
   pointerTimer = window.setTimeout(() => document.body.classList.remove("pointer"), 3000);
 });
 
-function focusables(): HTMLButtonElement[] {
-  return [...document.querySelectorAll<HTMLButtonElement>("#settings [data-focusable]")];
+function focusables(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>("#settings [data-focusable]")];
+}
+
+function stepSlider(slider: HTMLInputElement, direction: -1 | 1): void {
+  if (direction < 0) slider.stepDown();
+  else slider.stepUp();
+  slider.dispatchEvent(new Event("input"));
 }
 
 function moveSetting(by: number): void {
@@ -277,12 +410,18 @@ async function loadSystem(): Promise<void> {
   const address = system.addresses[0] ?? `${system.hostName.toLowerCase()}.local`;
   const url = `http://${address}:${system.port}`;
   document.querySelectorAll(".remote-url").forEach((el) => (el.textContent = url));
+  if (url !== remoteUrl) {
+    remoteUrl = url;
+    document.querySelectorAll("[data-qr=remote]").forEach((el) => el.replaceChildren(qrSvg(`${url}/`)));
+  }
   $("#remote-alt").textContent = system.addresses.length
     ? `or http://${system.hostName.toLowerCase()}.local:${system.port}`
     : "";
   $("#about").textContent = [`PC name: ${system.hostName}`, system.version && `HomeTV ${system.version}`, system.supervised ? "Watchdog on" : "Watchdog off"]
     .filter(Boolean)
     .join(" · ");
+  // Open-Meteo's free tier (CC BY 4.0) asks for credit; it lives here rather than on the home screen.
+  $("#credits").textContent = "Weather data by Open-Meteo.com";
 }
 
 async function loadDevices(): Promise<void> {
@@ -317,12 +456,57 @@ async function loadDevices(): Promise<void> {
           }),
         );
 
-        row.append(label, since, remove);
+        const info = document.createElement("div");
+        info.className = "device-info";
+        info.append(label, since);
+
+        row.append(info, speedControl(device), remove);
         return row;
       }),
     );
   }
   renderSettingFocus();
+}
+
+/** "Touchpad speed" slider for one phone. Saves shortly after the last change, so holding a key sends one request. */
+function speedControl(device: PairedDeviceInfo): HTMLElement {
+  const wrap = document.createElement("label");
+  wrap.className = "speed";
+
+  const caption = document.createElement("span");
+  caption.className = "muted";
+  caption.textContent = "Touchpad speed";
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.dataset.focusable = "";
+  slider.min = String(POINTER_SPEED_MIN);
+  slider.max = String(POINTER_SPEED_MAX);
+  slider.step = "0.1";
+  slider.value = String(device.pointerSpeed ?? 1);
+  slider.setAttribute("aria-label", `Touchpad speed for ${device.name || "Phone"}`);
+
+  const value = document.createElement("span");
+  value.className = "speed-value";
+  const show = () => (value.textContent = `${Number(slider.value).toFixed(1)}×`);
+  show();
+
+  let saveTimer: number | undefined;
+  slider.addEventListener("input", () => {
+    show();
+    clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(async () => {
+      const response = await fetch(`/api/devices/${encodeURIComponent(device.id)}/pointer-speed`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pointerSpeed: Number(slider.value) }),
+      });
+      if (!response.ok) toast("Couldn't save the touchpad speed");
+    }, 300);
+  });
+
+  wrap.append(caption, slider, value);
+  return wrap;
 }
 
 function post(path: string): Promise<Response> {
@@ -337,10 +521,55 @@ function toast(message: string): void {
   toastTimer = window.setTimeout(() => (el.hidden = true), 5000);
 }
 
+// ---- Ambient (idle) ----
+
+let idleTimer: number | undefined;
+
+/** Restarts the idle countdown. Returns true if the screen was ambient, i.e. this input only woke it up. */
+function wake(): boolean {
+  const wasAmbient = document.body.classList.contains("ambient");
+  document.body.classList.remove("ambient");
+  clearTimeout(idleTimer);
+  idleTimer = window.setTimeout(goAmbient, IDLE_MS);
+  return wasAmbient;
+}
+
+function goAmbient(): void {
+  // A PIN on screen is waiting for someone, and "Opening…" means an app is starting; check again later.
+  if (!$("#pin-overlay").hidden || !$("#opening").hidden) {
+    idleTimer = window.setTimeout(goAmbient, IDLE_MS);
+    return;
+  }
+  disarm();
+  if (view === "settings") showView("home");
+  document.body.classList.add("ambient");
+}
+
+// A click while ambient only wakes, like the first key press. Capture phase, so it never reaches a tile.
+document.addEventListener(
+  "click",
+  (event) => {
+    if (wake()) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+  },
+  true,
+);
+
+function showPhotosInfo(count: number, folder: string): void {
+  $("#photos-info").textContent =
+    count === 0
+      ? `Put JPEG, PNG or WebP photos in ${folder} and they'll play behind the home screen.`
+      : `${count} photo${count === 1 ? "" : "s"} from ${folder}. Add or remove files there; changes show up within a few minutes.`;
+}
+
 // ---- PIN ----
 
 function showPin(pin: string, expiresAt: Date): void {
   $("#pin").textContent = pin;
+  // The remote reads ?pin= and pairs straight away, so one scan does the whole thing.
+  $("#pin-qr").replaceChildren(...(remoteUrl ? [qrSvg(`${remoteUrl}/remote/?pin=${encodeURIComponent(pin)}`)] : []));
   $("#pin-overlay").hidden = false;
   clearInterval(pinTimer);
   const tick = () => {
@@ -366,10 +595,15 @@ function tickClock(): void {
 tickClock();
 setInterval(tickClock, 10_000);
 void loadSystem();
+startWidgets($("#widgets"));
+startSlideshow($("#backdrop"), (list) => showPhotosInfo(list.photos.length, list.folder));
+wake();
 
 fetch("/api/apps")
   .then((r) => r.json() as Promise<AppTile[]>)
   .then((loaded) => {
     apps = loaded;
     renderTiles();
+    // After the apps, so cards can use their names and colors.
+    void loadContinue();
   });

@@ -1,4 +1,6 @@
 using HomeTV.Core.Apps;
+using HomeTV.Core.Continue;
+using HomeTV.Core.NowPlaying;
 using HomeTV.Core.Platform;
 using HomeTV.Core.Session;
 using Microsoft.Extensions.Logging;
@@ -9,9 +11,12 @@ namespace HomeTV.Core.Remote;
 public sealed class CommandDispatcher(
     IInput input,
     IAppHost appHost,
+    AppSwitcher switcher,
     IPower power,
     AppRegistry apps,
     SessionState session,
+    ContinueService continueWatching,
+    NowPlayingService nowPlaying,
     ILogger<CommandDispatcher> logger)
 {
     /// <summary>Longest text a single <see cref="TextCommand"/> may type.</summary>
@@ -41,12 +46,20 @@ public sealed class CommandDispatcher(
             case TextCommand { Text: var text } when !string.IsNullOrEmpty(text) && text.Length <= MaxTextLength:
                 input.TypeText(text);
                 break;
-            case LaunchCommand { App: var appId }:
-                await LaunchAsync(appId, ct);
+            case LaunchCommand { App: var appId, Continue: var entryId }:
+                await LaunchAsync(appId, entryId, ct);
+                break;
+            case SeekCommand { Position: var position } when double.IsFinite(position):
+                await nowPlaying.SeekAsync(position, ct);
                 break;
             case HomeCommand:
-                await appHost.ReturnHomeAsync(ct);
-                session.SetForeground(null);
+                await switcher.HomeAsync(ct);
+                break;
+            case CloseCommand { App: var appId }:
+                await switcher.CloseAsync(appId, ct);
+                break;
+            case SplitCommand { Apps: { } appIds }:
+                await switcher.SplitAsync(appIds, ct);
                 break;
             case SleepCommand:
                 power.Sleep();
@@ -60,7 +73,7 @@ public sealed class CommandDispatcher(
         }
     }
 
-    private async Task LaunchAsync(string appId, CancellationToken ct)
+    private async Task LaunchAsync(string appId, string? entryId, CancellationToken ct)
     {
         var app = apps.Find(appId);
         if (app is null)
@@ -69,8 +82,17 @@ public sealed class CommandDispatcher(
             return;
         }
 
-        await appHost.LaunchAsync(app, ct);
-        session.SetForeground(app.Id);
+        // Only pages HomeTV saw the app showing itself: a remote can't make Edge open an arbitrary address.
+        string? url = null;
+        if (entryId is not null)
+        {
+            if (continueWatching.Find(entryId) is { } entry && string.Equals(entry.AppId, app.Id, StringComparison.OrdinalIgnoreCase))
+                url = continueWatching.ResumeUrl(entry);
+            else
+                logger.LogWarning("Unknown continue-watching entry {Entry} for {AppId}; opening its start page", entryId, appId);
+        }
+
+        await switcher.LaunchAsync(app, url, ct);
     }
 
     /// <summary>Keys that always go to the OS, even while the launcher is in front.</summary>

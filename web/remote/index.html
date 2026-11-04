@@ -31,63 +31,34 @@
       <button id="sleep" class="icon" aria-label="Sleep">⏻</button>
     </header>
 
-    <div id="tab-remote" class="tab">
-      <div class="dpad">
-        <button class="dir up" data-key="up" data-repeat aria-label="Up">▲</button>
-        <button class="dir left" data-key="left" data-repeat aria-label="Left">◀</button>
-        <button class="ok" data-key="ok">OK</button>
-        <button class="dir right" data-key="right" data-repeat aria-label="Right">▶</button>
-        <button class="dir down" data-key="down" data-repeat aria-label="Down">▼</button>
-      </div>
-      <div class="row">
-        <button data-key="back">Back</button>
-        <button id="home" class="accent">Home</button>
-        <button data-key="playPause" aria-label="Play or pause">⏯</button>
-      </div>
-      <div class="row">
-        <button data-key="previous" aria-label="Previous">⏮</button>
-        <button data-key="next" aria-label="Next">⏭</button>
-      </div>
-      <div class="row">
-        <button data-key="volumeDown" data-repeat aria-label="Volume down">🔉</button>
-        <button data-key="mute" aria-label="Mute">🔇</button>
-        <button data-key="volumeUp" data-repeat aria-label="Volume up">🔊</button>
-      </div>
+    <div class="topbar">
+      <button data-key="volumeDown" data-repeat aria-label="Volume down" class="glyph">
+        <svg viewBox="0 0 28 24" aria-hidden="true"><path d="M3 9h4l6-5v16l-6-5H3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z" fill="currentColor"/><path d="M17 9.2a4 4 0 0 1 0 5.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button data-key="volumeUp" data-repeat aria-label="Volume up" class="glyph">
+        <svg viewBox="0 0 28 24" aria-hidden="true"><path d="M3 9h4l6-5v16l-6-5H3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z" fill="currentColor"/><path d="M17 9.2a4 4 0 0 1 0 5.6M20.2 6.4a8 8 0 0 1 0 11.2M23.4 3.6a12 12 0 0 1 0 16.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button data-key="back">Back</button>
+      <button id="home" class="accent">Home</button>
     </div>
 
-    <div id="tab-touchpad" class="tab" hidden>
+    <!-- Opens by itself when a text field on the TV has focus; what's typed goes to the TV as you type. -->
+    <form id="keyboard" class="keyboard" hidden>
+      <input id="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go"
+             placeholder="Type on TV…" aria-label="Type on the TV">
+      <button type="button" data-key="backspace" data-repeat aria-label="Delete">⌫</button>
+      <button type="button" id="keyboard-close" aria-label="Close keyboard">✕</button>
+    </form>
+
+    <div id="tab-touchpad" class="tab">
+      <!-- Open apps: tap to switch (or, in split screen, to give a tile the sound), ⧉ to split, ✕ to close. -->
+      <ul id="open-list" class="open-list" hidden></ul>
       <div class="touch-wrap">
-        <div id="touchpad" aria-label="Touchpad: drag to move, tap to click"></div>
+        <div id="touchpad" aria-label="Touchpad: drag to move, tap to click, two-finger tap to right-click"></div>
         <div id="scrollstrip" aria-label="Scroll strip"></div>
       </div>
-      <div class="row">
-        <button id="left-click">Click</button>
-        <button id="right-click">Right click</button>
-      </div>
     </div>
 
-    <div id="tab-keyboard" class="tab" hidden>
-      <form id="text-form">
-        <input id="text" autocomplete="off" autocapitalize="off" placeholder="Type to search…" aria-label="Text to type on TV">
-        <button class="primary" type="submit">Send</button>
-      </form>
-      <div class="row">
-        <button data-key="backspace" data-repeat>⌫ Delete</button>
-        <button data-key="enter">Enter ⏎</button>
-      </div>
-    </div>
-
-    <div id="tab-apps" class="tab" hidden>
-      <div id="apps" class="apps"></div>
-      <button id="desktop" class="subtle">Desktop mode (maintenance)</button>
-    </div>
-
-    <nav>
-      <button data-tab="remote" class="active">Remote</button>
-      <button data-tab="touchpad">Touchpad</button>
-      <button data-tab="keyboard">Keyboard</button>
-      <button data-tab="apps">Apps</button>
-    </nav>
   </section>
 
   <script type="module" src="app.js"></script>

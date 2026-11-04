@@ -7,14 +7,30 @@
   <title>HomeTV</title>
 </head>
 <body>
+  <!-- Background slideshow (slideshow.ts): two layers that crossfade, and a scrim that keeps text readable. -->
+  <div id="backdrop" class="backdrop" aria-hidden="true"><img class="photo" alt=""><img class="photo" alt=""></div>
+  <div class="scrim" aria-hidden="true"></div>
+
   <header>
-    <span class="brand">HomeTV</span>
+    <!-- Where the sound comes out (audio.ts): one icon per output, the playing one lit. Press to switch. -->
+    <button id="audio-button" class="audio-button" hidden></button>
     <span id="clock"></span>
+    <button id="settings-button" class="settings-button" aria-label="Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
   </header>
 
   <main id="home">
+    <div id="widgets" class="widgets" hidden></div>
     <div id="tiles" class="tiles" role="list"></div>
-    <p class="hint">Remote: open <strong class="remote-url"></strong> on your phone</p>
+    <!-- Continue watching (continue.ts): pages HomeTV saw a video playing on. Down from the tiles. -->
+    <section id="continue" class="continue" hidden>
+      <h2>Continue watching</h2>
+      <div id="continue-row" class="continue-row" role="list"></div>
+    </section>
+    <div class="hint">
+      <div class="qr-slot" data-qr="remote" aria-label="QR code for the phone remote"></div>
+    </div>
   </main>
 
   <main id="settings" class="settings" hidden>
@@ -22,9 +38,14 @@
     <div class="columns">
       <section>
         <h2>Phone remote</h2>
-        <p class="muted">On the same Wi-Fi, open</p>
-        <p class="remote-url big"></p>
-        <p id="remote-alt" class="muted"></p>
+        <div class="remote-block">
+          <div>
+            <p class="muted">On the same Wi-Fi, open</p>
+            <p class="remote-url big"></p>
+            <p id="remote-alt" class="muted"></p>
+          </div>
+          <div class="qr-slot settings-qr" data-qr="remote"></div>
+        </div>
         <button data-focusable id="pair">Pair a new phone</button>
 
         <h2>Paired phones</h2>
@@ -37,7 +58,11 @@
         <button data-focusable id="restart-app" data-confirm>Restart HomeTV</button>
         <button data-focusable id="restart-pc" data-confirm>Restart PC</button>
         <button data-focusable id="desktop" data-confirm>Desktop mode (maintenance)</button>
+
+        <h2>Background photos</h2>
+        <p id="photos-info" class="muted"></p>
         <p id="about" class="muted about"></p>
+        <p id="credits" class="muted"></p>
       </section>
     </div>
     <p class="muted footer">↑ ↓ move · OK select · Back to return</p>
@@ -51,6 +76,8 @@
     <div class="pin-card">
       <p>Pairing PIN</p>
       <div id="pin" class="pin"></div>
+      <div id="pin-qr" class="qr-slot"></div>
+      <p class="muted">Scan to pair this phone, or type the PIN</p>
       <p id="pin-expiry" class="muted"></p>
     </div>
   </div>
