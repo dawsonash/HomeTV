@@ -2,7 +2,9 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using HomeTV.Core;
+using HomeTV.Core.NowPlaying;
 using HomeTV.Core.Pairing;
+using HomeTV.Core.Platform;
 using HomeTV.Core.Remote;
 using HomeTV.Core.Session;
 
@@ -28,8 +30,17 @@ internal static class HubSocket
         using var subscription = session.Subscribe();
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
 
-        // Tell the client what's on screen as soon as it connects.
-        await SendAsync(socket, new StateEvent(session.ForegroundAppId), cts.Token);
+        // Tell the client what's on screen (and playing) as soon as it connects.
+        await SendAsync(socket, session.State, cts.Token);
+        var nowPlaying = context.RequestServices.GetRequiredService<NowPlayingService>().Current;
+        await SendAsync(socket, new NowPlayingEvent(nowPlaying), cts.Token);
+        var textFocus = context.RequestServices.GetRequiredService<ITextFocus>().Current;
+        await SendAsync(socket, new TextFocusEvent(textFocus), cts.Token);
+        var scrollHint = context.RequestServices.GetRequiredService<ScrollHint>();
+        await SendAsync(socket, new ScrollableEvent(scrollHint.Scrollable), cts.Token);
+        var audio = context.RequestServices.GetRequiredService<HomeTV.Core.Audio.AudioOutputService>();
+        if (audio.Enabled)
+            await SendAsync(socket, audio.Current, cts.Token);
 
         var sendLoop = Task.Run(async () =>
         {

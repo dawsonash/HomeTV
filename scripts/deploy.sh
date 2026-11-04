@@ -18,7 +18,7 @@ echo "==> Building web UI"
 
 echo "==> Publishing win-x64"
 rm -rf "$out"
-dotnet publish "$root/src/HomeTV.App" -c Release -f net10.0-windows -r win-x64 --self-contained -o "$out" --nologo -v quiet
+dotnet publish "$root/src/HomeTV.App" -c Release -f net10.0-windows10.0.19041.0 -r win-x64 --self-contained -o "$out" --nologo -v quiet
 
 echo "==> Copying to $HOMETV_SSH"
 ssh "$HOMETV_SSH" "powershell -NoProfile -Command \"Remove-Item C:\\HomeTV\\staging\\* -Recurse -Force -ErrorAction SilentlyContinue\""

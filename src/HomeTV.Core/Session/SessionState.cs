@@ -10,30 +10,39 @@ public sealed class SessionState
 {
     private readonly Lock _lock = new();
     private readonly List<Channel<HubEvent>> _subscribers = [];
+    private StateEvent _state = new(null, [], null);
 
-    /// <summary>Id of the app in front, or null when the launcher is showing.</summary>
-    public string? ForegroundAppId { get; private set; }
+    /// <summary>Id of the app in front (the active tile in split screen), or null when the launcher is showing.</summary>
+    public string? ForegroundAppId
+    {
+        get
+        {
+            lock (_lock)
+                return _state.ForegroundApp;
+        }
+    }
 
     public bool LauncherInFront => ForegroundAppId is null;
 
-    public void SetForeground(string? appId)
+    /// <summary>The current <see cref="StateEvent"/>, for a client that just connected.</summary>
+    public StateEvent State
     {
-        lock (_lock)
-            ForegroundAppId = appId;
-        Publish(new StateEvent(appId));
+        get
+        {
+            lock (_lock)
+                return _state;
+        }
     }
 
-    /// <summary>Shows the launcher again if <paramref name="appId"/> is still the app in front (it exited on its own).</summary>
-    public bool ClearForeground(string appId)
+    /// <summary>Records what's on screen and what's open, and tells every client.</summary>
+    /// <param name="running">Open apps, most recently used first.</param>
+    /// <param name="split">The tiled apps in screen order, or null outside split screen.</param>
+    public void SetApps(string? foreground, IReadOnlyList<string> running, IReadOnlyList<string>? split)
     {
+        var state = new StateEvent(foreground, [.. running], split is null ? null : [.. split]);
         lock (_lock)
-        {
-            if (!string.Equals(ForegroundAppId, appId, StringComparison.OrdinalIgnoreCase))
-                return false;
-            ForegroundAppId = null;
-        }
-        Publish(new StateEvent(null));
-        return true;
+            _state = state;
+        Publish(state);
     }
 
     /// <summary>Remote D-pad presses go straight to the launcher page instead of through OS input injection.</summary>

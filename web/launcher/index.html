@@ -7,7 +7,13 @@
   <title>HomeTV</title>
 </head>
 <body>
+  <!-- Background slideshow (slideshow.ts): two layers that crossfade, and a scrim that keeps text readable. -->
+  <div id="backdrop" class="backdrop" aria-hidden="true"><img class="photo" alt=""><img class="photo" alt=""></div>
+  <div class="scrim" aria-hidden="true"></div>
+
   <header>
+    <!-- Where the sound comes out (audio.ts): one icon per output, the playing one lit. Press to switch. -->
+    <button id="audio-button" class="audio-button" hidden></button>
     <span id="clock"></span>
     <button id="settings-button" class="settings-button" aria-label="Settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -17,6 +23,11 @@
   <main id="home">
     <div id="widgets" class="widgets" hidden></div>
     <div id="tiles" class="tiles" role="list"></div>
+    <!-- Continue watching (continue.ts): pages HomeTV saw a video playing on. Down from the tiles. -->
+    <section id="continue" class="continue" hidden>
+      <h2>Continue watching</h2>
+      <div id="continue-row" class="continue-row" role="list"></div>
+    </section>
     <div class="hint">
       <div class="qr-slot" data-qr="remote" aria-label="QR code for the phone remote"></div>
     </div>
@@ -47,6 +58,9 @@
         <button data-focusable id="restart-app" data-confirm>Restart HomeTV</button>
         <button data-focusable id="restart-pc" data-confirm>Restart PC</button>
         <button data-focusable id="desktop" data-confirm>Desktop mode (maintenance)</button>
+
+        <h2>Background photos</h2>
+        <p id="photos-info" class="muted"></p>
         <p id="about" class="muted about"></p>
         <p id="credits" class="muted"></p>
       </section>

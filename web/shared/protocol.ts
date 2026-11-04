@@ -12,16 +12,81 @@ export type RemoteCommand =
   | { type: "click"; button: "left" | "right" }
   | { type: "scroll"; dy: number }
   | { type: "text"; text: string }
-  | { type: "launch"; app: string }
+  /** `continue`: a ContinueEntry id, to reopen that page instead of the app's start page. */
+  | { type: "launch"; app: string; continue?: string }
   | { type: "home" }
   | { type: "sleep" }
-  | { type: "desktop" };
+  | { type: "desktop" }
+  /** Seconds. */
+  | { type: "seek"; position: number }
+  /** Closes an open app, in front or in the background. */
+  | { type: "close"; app: string }
+  /** Tiles 2–4 apps side by side; fewer ends split screen with that app (or the active tile) full screen. */
+  | { type: "split"; apps: string[] };
 
 export type HubEvent =
-  | { type: "state"; foregroundApp: string | null }
+  /** `running`: open apps, most recently used first. `split`: tiled apps in screen order, or null. */
+  | { type: "state"; foregroundApp: string | null; running: string[]; split: string[] | null }
   | { type: "key"; key: RemoteKey }
   | { type: "pinShown"; pin: string; expiresAt: string }
-  | { type: "pinHidden" };
+  | { type: "pinHidden" }
+  | { type: "nowPlaying"; media: NowPlaying | null }
+  /** Focus on the TV moved into a text field, or out of one (null). */
+  | { type: "textFocus"; field: TextField | null }
+  /** Whether there's anything to scroll under the TV's pointer. */
+  | { type: "scrollable"; scrollable: boolean }
+  | ({ type: "audio" } & AudioState);
+
+/** Where sound can go (config/audio.json, AudioOutputService.cs). `current` is null for a device not listed there. */
+export interface AudioState {
+  outputs: AudioOutput[];
+  current: string | null;
+}
+
+export interface AudioOutput {
+  id: string;
+  name: string;
+  icon: "tv" | "soundbar" | "speaker";
+  /** Connected, and the TV is set up if it needs to be. */
+  available: boolean;
+}
+
+/** A focused text field on the TV (ITextFocus.cs). */
+export interface TextField {
+  /** Its label or placeholder, e.g. "Search". */
+  name: string | null;
+  /** A password field. */
+  secret: boolean;
+}
+
+/** What Windows' media controls report (NowPlaying.cs). Positions are seconds, as of when the event was sent. */
+export interface NowPlaying {
+  /** e.g. "MSEdge", "Spotify.exe". */
+  source: string;
+  title: string | null;
+  artist: string | null;
+  album: string | null;
+  status: "playing" | "paused" | "stopped";
+  position: number | null;
+  duration: number | null;
+  canSeek: boolean;
+  /** Artwork is at /api/now-playing/art?v=<artVersion>; null when there's none. */
+  artVersion: string | null;
+}
+
+/** GET /api/continue: the "Continue watching" row, newest first (ContinueService.cs). */
+export interface ContinueEntry {
+  id: string;
+  appId: string;
+  title: string;
+  /** https image from the page, or null. */
+  image: string | null;
+  /** Seconds; null if the page had no video position. */
+  position: number | null;
+  /** Seconds; null for live streams. */
+  duration: number | null;
+  updatedAt: string;
+}
 
 /** GET /api/system (launcher only). */
 export interface SystemInfo {
@@ -31,6 +96,13 @@ export interface SystemInfo {
   version: string | null;
   /** True when a watchdog will start HomeTV again after "Restart HomeTV". */
   supervised: boolean;
+}
+
+/** GET /api/photos: the launcher's background slideshow. */
+export interface PhotoList {
+  /** Where on the box to put photos. */
+  folder: string;
+  photos: { name: string; url: string }[];
 }
 
 /** GET /api/devices. */

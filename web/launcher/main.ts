@@ -1,17 +1,26 @@
-import { POINTER_SPEED_MAX, POINTER_SPEED_MIN, type AppTile, type PairedDeviceInfo, type RemoteKey, type SystemInfo } from "../shared/protocol";
+import { POINTER_SPEED_MAX, POINTER_SPEED_MIN, type AppTile, type ContinueEntry, type PairedDeviceInfo, type RemoteKey, type SystemInfo } from "../shared/protocol";
+import { cycleAudio, renderAudio } from "./audio";
+import { fetchContinue, renderContinue } from "./continue";
 import { qrSvg } from "../shared/qr";
 import { HubSocket } from "../shared/socket";
+import { startSlideshow } from "./slideshow";
 import { startWidgets } from "./widgets";
 
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 
 /** How long a "press OK again to confirm" stays armed. */
 const CONFIRM_MS = 4000;
+/** No remote, keyboard or mouse input for this long and the home screen goes ambient: just photos, clock and widgets. */
+const IDLE_MS = 5 * 60_000;
 
 let apps: AppTile[] = [];
 let focusedTile = 0;
-/** The round settings button in the header is selected instead of a tile. */
-let gearFocused = false;
+/** "Continue watching" cards, and whether the D-pad is in that row (below the tiles) rather than on the tiles. */
+let continueEntries: ContinueEntry[] = [];
+let inContinueRow = false;
+let focusedCard = 0;
+/** A header button is selected instead of a tile: the audio button (top left) or settings (top right). */
+let headerFocus: "audio" | "gear" | null = null;
 let focusedSetting = 0;
 let view: "home" | "settings" = "home";
 let system: SystemInfo | null = null;
@@ -30,7 +39,18 @@ const socket = new HubSocket({
         handleKey(event.key);
         break;
       case "state":
-        showOpening(event.foregroundApp);
+        showOpening(event.split ? null : event.foregroundApp);
+        // Behind split-screen tiles: plain black, so any sliver the tiles leave reads as letterboxing.
+        document.body.classList.toggle("split", !!event.split);
+        // Back home: what was just watched is now first in the row.
+        if (event.foregroundApp === null) void loadContinue();
+        // Launched or closed an app (from the phone's app list, say): either way, someone's watching.
+        wake();
+        break;
+      case "audio":
+        renderAudio($("#audio-button"), event);
+        // A device that disappears (Bluetooth speaker off) mustn't strand the D-pad on a hidden button.
+        if (headerFocus === "audio" && !audioShown()) setHeaderFocus(null);
         break;
       case "pinShown":
         showPin(event.pin, new Date(event.expiresAt));
@@ -47,6 +67,8 @@ const socket = new HubSocket({
 // ---- Input ----
 
 function handleKey(key: RemoteKey): void {
+  // The first press only brings the tiles back, so a stray OK doesn't launch whatever happens to be selected.
+  if (wake()) return;
   if (!$("#pin-overlay").hidden) {
     if (key === "back") hidePin();
     return;
@@ -56,13 +78,30 @@ function handleKey(key: RemoteKey): void {
 }
 
 function homeKey(key: RemoteKey): void {
-  // Up from the tiles selects the settings button in the corner; down (or left) goes back.
-  if (gearFocused) {
-    if (key === "down" || key === "left") setGearFocus(false);
-    else if (key === "ok" || key === "enter") showView("settings");
+  // Up from the tiles selects the nearer header button; left/right moves between the two, down goes back.
+  if (headerFocus) {
+    if (key === "down" || key === "back") setHeaderFocus(null);
+    else if (key === "left" && headerFocus === "gear") setHeaderFocus(audioShown() ? "audio" : null);
+    else if (key === "right" && headerFocus === "audio") setHeaderFocus("gear");
+    else if (key === "ok" || key === "enter") {
+      if (headerFocus === "gear") showView("settings");
+      else void cycleAudio($("#audio-button"), toast);
+    }
+    return;
+  }
+  if (inContinueRow) {
+    continueKey(key);
     return;
   }
   switch (key) {
+    case "down":
+      if (continueEntries.length > 0) {
+        inContinueRow = true;
+        // Start from the card under the selected tile, roughly.
+        focusedCard = Math.min(focusedTile, continueEntries.length - 1);
+        renderFocus();
+      }
+      break;
     case "left":
       moveTile(-1);
       break;
@@ -70,7 +109,7 @@ function homeKey(key: RemoteKey): void {
       moveTile(1);
       break;
     case "up":
-      setGearFocus(true);
+      setHeaderFocus(audioShown() && focusedTile < apps.length / 2 ? "audio" : "gear");
       break;
     case "ok":
     case "enter":
@@ -79,9 +118,61 @@ function homeKey(key: RemoteKey): void {
   }
 }
 
-function setGearFocus(focused: boolean): void {
-  gearFocused = focused;
+function continueKey(key: RemoteKey): void {
+  switch (key) {
+    case "left":
+    case "right":
+      focusedCard = Math.max(0, Math.min(continueEntries.length - 1, focusedCard + (key === "left" ? -1 : 1)));
+      renderFocus();
+      break;
+    case "up":
+    case "back":
+      inContinueRow = false;
+      renderFocus();
+      break;
+    case "ok":
+    case "enter":
+      openCard(focusedCard);
+      break;
+  }
+}
+
+function openCard(index: number): void {
+  const entry = continueEntries[index];
+  if (entry) socket.send({ type: "launch", app: entry.appId, continue: entry.id });
+}
+
+async function loadContinue(): Promise<void> {
+  continueEntries = await fetchContinue();
+  if (continueEntries.length === 0) inContinueRow = false;
+  focusedCard = Math.min(focusedCard, Math.max(0, continueEntries.length - 1));
+  renderContinue(
+    $("#continue"),
+    $("#continue-row"),
+    continueEntries,
+    apps,
+    (i) => {
+      inContinueRow = true;
+      headerFocus = null;
+      focusedCard = i;
+      renderFocus();
+    },
+    (i) => {
+      focusedCard = i;
+      renderFocus();
+      openCard(i);
+    },
+  );
   renderFocus();
+}
+
+function setHeaderFocus(focus: "audio" | "gear" | null): void {
+  headerFocus = focus;
+  renderFocus();
+}
+
+function audioShown(): boolean {
+  return !$("#audio-button").hidden;
 }
 
 function settingsKey(key: RemoteKey): void {
@@ -154,7 +245,8 @@ function renderTiles(): void {
     // Pointing selects, clicking opens: same as the D-pad.
     tile.addEventListener("mouseenter", () => {
       focusedTile = i;
-      gearFocused = false;
+      headerFocus = null;
+      inContinueRow = false;
       renderFocus();
     });
     tile.addEventListener("click", () => {
@@ -169,11 +261,16 @@ function renderTiles(): void {
 }
 
 function renderFocus(): void {
-  document.querySelectorAll(".tile").forEach((tile, i) => tile.classList.toggle("focused", !gearFocused && i === focusedTile));
-  $("#settings-button").classList.toggle("focused", gearFocused);
+  const onTiles = !headerFocus && !inContinueRow;
+  document.querySelectorAll(".tile").forEach((tile, i) => tile.classList.toggle("focused", onTiles && i === focusedTile));
+  document.querySelectorAll(".card").forEach((card, i) => card.classList.toggle("focused", !headerFocus && inContinueRow && i === focusedCard));
+  $("#settings-button").classList.toggle("focused", headerFocus === "gear");
+  $("#audio-button").classList.toggle("focused", headerFocus === "audio");
 }
 
-$("#settings-button").addEventListener("mouseenter", () => setGearFocus(true));
+$("#settings-button").addEventListener("mouseenter", () => setHeaderFocus("gear"));
+$("#audio-button").addEventListener("mouseenter", () => setHeaderFocus("audio"));
+$("#audio-button").addEventListener("click", () => void cycleAudio($("#audio-button"), toast));
 $("#settings-button").addEventListener("click", () => showView("settings"));
 
 // In production the app's own window covers the launcher; this shows while it starts.
@@ -190,8 +287,11 @@ function showView(next: "home" | "settings"): void {
   disarm();
   $("#home").hidden = next !== "home";
   $("#settings").hidden = next !== "settings";
-  // The corner button only belongs on the home screen; Settings has its own back button.
+  // The corner buttons only belong on the home screen; Settings has its own back button.
   $("#settings-button").hidden = next !== "home";
+  document.body.classList.toggle("in-settings", next === "settings");
+  headerFocus = null;
+  renderFocus();
   if (next === "settings") {
     focusedSetting = 0;
     renderSettingFocus();
@@ -216,7 +316,14 @@ $("#pin-overlay").addEventListener("click", hidePin);
 
 // The pointer stays hidden on the TV until the mouse (or the phone's touchpad) actually moves.
 let pointerTimer: number | undefined;
-document.addEventListener("mousemove", () => {
+let lastPointer = "";
+document.addEventListener("mousemove", (event) => {
+  // Chromium sends a mousemove without any movement when the element under a still cursor changes (as tiles fade
+  // out going ambient), so only real movement counts.
+  const at = `${event.screenX},${event.screenY}`;
+  if (at === lastPointer) return;
+  lastPointer = at;
+  wake();
   document.body.classList.add("pointer");
   clearTimeout(pointerTimer);
   pointerTimer = window.setTimeout(() => document.body.classList.remove("pointer"), 3000);
@@ -414,6 +521,49 @@ function toast(message: string): void {
   toastTimer = window.setTimeout(() => (el.hidden = true), 5000);
 }
 
+// ---- Ambient (idle) ----
+
+let idleTimer: number | undefined;
+
+/** Restarts the idle countdown. Returns true if the screen was ambient, i.e. this input only woke it up. */
+function wake(): boolean {
+  const wasAmbient = document.body.classList.contains("ambient");
+  document.body.classList.remove("ambient");
+  clearTimeout(idleTimer);
+  idleTimer = window.setTimeout(goAmbient, IDLE_MS);
+  return wasAmbient;
+}
+
+function goAmbient(): void {
+  // A PIN on screen is waiting for someone, and "Opening…" means an app is starting; check again later.
+  if (!$("#pin-overlay").hidden || !$("#opening").hidden) {
+    idleTimer = window.setTimeout(goAmbient, IDLE_MS);
+    return;
+  }
+  disarm();
+  if (view === "settings") showView("home");
+  document.body.classList.add("ambient");
+}
+
+// A click while ambient only wakes, like the first key press. Capture phase, so it never reaches a tile.
+document.addEventListener(
+  "click",
+  (event) => {
+    if (wake()) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+  },
+  true,
+);
+
+function showPhotosInfo(count: number, folder: string): void {
+  $("#photos-info").textContent =
+    count === 0
+      ? `Put JPEG, PNG or WebP photos in ${folder} and they'll play behind the home screen.`
+      : `${count} photo${count === 1 ? "" : "s"} from ${folder}. Add or remove files there; changes show up within a few minutes.`;
+}
+
 // ---- PIN ----
 
 function showPin(pin: string, expiresAt: Date): void {
@@ -446,10 +596,14 @@ tickClock();
 setInterval(tickClock, 10_000);
 void loadSystem();
 startWidgets($("#widgets"));
+startSlideshow($("#backdrop"), (list) => showPhotosInfo(list.photos.length, list.folder));
+wake();
 
 fetch("/api/apps")
   .then((r) => r.json() as Promise<AppTile[]>)
   .then((loaded) => {
     apps = loaded;
     renderTiles();
+    // After the apps, so cards can use their names and colors.
+    void loadContinue();
   });

@@ -15,6 +15,9 @@ namespace HomeTV.Core.Remote;
 [JsonDerivedType(typeof(HomeCommand), "home")]
 [JsonDerivedType(typeof(SleepCommand), "sleep")]
 [JsonDerivedType(typeof(DesktopCommand), "desktop")]
+[JsonDerivedType(typeof(SeekCommand), "seek")]
+[JsonDerivedType(typeof(CloseCommand), "close")]
+[JsonDerivedType(typeof(SplitCommand), "split")]
 public abstract record RemoteCommand
 {
     /// <summary>Returns null for malformed or unknown messages rather than throwing.</summary>
@@ -46,10 +49,20 @@ public sealed record ScrollCommand(int Dy) : RemoteCommand;
 
 public sealed record TextCommand(string Text) : RemoteCommand;
 
-public sealed record LaunchCommand(string App) : RemoteCommand;
+/// <summary>Opens an app. <paramref name="Continue"/> is a "Continue watching" entry id: open that page instead of the start page.</summary>
+public sealed record LaunchCommand(string App, string? Continue = null) : RemoteCommand;
+
+/// <summary>Jumps the playing media to <paramref name="Position"/> seconds.</summary>
+public sealed record SeekCommand(double Position) : RemoteCommand;
 
 public sealed record HomeCommand : RemoteCommand;
 
 public sealed record SleepCommand : RemoteCommand;
 
 public sealed record DesktopCommand : RemoteCommand;
+
+/// <summary>Closes an open app, in front or in the background.</summary>
+public sealed record CloseCommand(string App) : RemoteCommand;
+
+/// <summary>Tiles 2–4 apps side by side. Fewer ends split screen, leaving that app (or the active tile) full screen.</summary>
+public sealed record SplitCommand(IReadOnlyList<string> Apps) : RemoteCommand;

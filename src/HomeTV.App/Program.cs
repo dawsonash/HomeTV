@@ -1,7 +1,11 @@
 using HomeTV.App.Api;
 using Microsoft.AspNetCore.Http;
 using HomeTV.Core.Apps;
+using HomeTV.Core.Audio;
+using HomeTV.Core.Continue;
+using HomeTV.Core.NowPlaying;
 using HomeTV.Core.Pairing;
+using HomeTV.Core.Photos;
 using HomeTV.Core.Remote;
 using HomeTV.Core.Session;
 using HomeTV.Core.Widgets;
@@ -22,6 +26,10 @@ var dataDir = builder.Configuration["HomeTV:DataDir"]
     ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HomeTV");
 var appsPath = builder.Configuration["HomeTV:AppsPath"] ?? Path.Combine(AppContext.BaseDirectory, "apps.json");
 var widgetsPath = builder.Configuration["HomeTV:WidgetsPath"] ?? Path.Combine(AppContext.BaseDirectory, "widgets.json");
+var audioPath = builder.Configuration["HomeTV:AudioPath"] ?? Path.Combine(AppContext.BaseDirectory, "audio.json");
+// Background photos: Pictures\HomeTV of whoever runs HomeTV (the tv user on the box), outside the app folder deploys replace.
+var photosDir = builder.Configuration["HomeTV:PhotosDir"]
+    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "HomeTV");
 
 var urls = builder.Configuration["HomeTV:Urls"] ?? "http://0.0.0.0:8888";
 var port = BindingAddress.Parse(urls.Split(';')[0]).Port;
@@ -47,7 +55,23 @@ builder.Services
     .AddSingleton<PairingService>()
     .AddSingleton(AppRegistry.Load(appsPath))
     .AddSingleton<CommandDispatcher>()
+    .AddSingleton(new AppSwitcherOptions(builder.Configuration.GetValue("HomeTV:MaxBackgroundApps", 2)))
+    .AddSingleton<AppSwitcher>()
+    .AddSingleton<ScrollHint>()
+    .AddSingleton<IContinueStore>(new JsonFileContinueStore(Path.Combine(dataDir, "continue.json")))
+    .AddSingleton<ContinueService>()
+    .AddSingleton<NowPlayingService>()
     .AddSingleton(WidgetConfig.Load(widgetsPath))
+    .AddSingleton(new PhotoLibrary(photosDir))
+    .AddSingleton(AudioConfig.Load(audioPath))
+    .AddSingleton(sp => new AudioOutputService(
+        sp.GetRequiredService<AudioConfig>(),
+        sp.GetRequiredService<HomeTV.Core.Platform.IAudioDevices>(),
+        sp.GetRequiredService<HomeTV.Core.Platform.ITvControl>(),
+        sp.GetRequiredService<SessionState>(),
+        sp.GetRequiredService<TimeProvider>(),
+        sp.GetRequiredService<ILogger<AudioOutputService>>(),
+        Path.Combine(dataDir, "audio-output.json")))
     .AddSingleton(sp => new WidgetService(
         sp.GetRequiredService<WidgetConfig>(),
         new HttpClient { Timeout = TimeSpan.FromSeconds(10), DefaultRequestHeaders = { { "User-Agent", "HomeTV/1.0" } } },
@@ -61,11 +85,15 @@ builder.Services
 
 #if WINDOWS
 builder.Services.AddWindowsPlatform();
+// adb runs anywhere, but on the Mac the fake platform logs TV commands instead.
+builder.Services.AddSingleton<HomeTV.Core.Platform.ITvControl>(sp =>
+    new AdbTvControl(sp.GetRequiredService<AudioConfig>().Tv, sp.GetRequiredService<ILogger<AdbTvControl>>()));
 #else
 builder.Services.AddFakePlatform();
 #endif
 
 var app = builder.Build();
+app.Services.GetRequiredService<PhotoLibrary>().EnsureFolder(); // So it's there to drop photos into.
 
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(15) });
 app.UseDefaultFiles();
@@ -91,12 +119,38 @@ app.MapGet("/healthz", (HttpContext context) =>
 });
 app.MapPairingEndpoints();
 app.MapRemoteEndpoints();
+app.MapMediaEndpoints();
 app.MapLauncherEndpoints();
+app.MapPhotoEndpoints();
+app.MapAudioEndpoints();
 app.MapSystemEndpoints();
 
-// An app the user quits by other means (Alt+F4, the app's own exit, a crash) hands the TV back to the launcher.
+// An app the user quits by other means (Alt+F4, the app's own exit, a crash) leaves the open-apps list, and the
+// launcher (or the remaining tile) takes its place. Clicking into a tile makes it the active one.
 var session = app.Services.GetRequiredService<SessionState>();
-app.Services.GetRequiredService<HomeTV.Core.Platform.IAppHost>().AppExited += appId => session.ClearForeground(appId);
+var appHost = app.Services.GetRequiredService<HomeTV.Core.Platform.IAppHost>();
+var switcher = app.Services.GetRequiredService<AppSwitcher>();
+appHost.AppExited += appId => _ = switcher.SafelyAsync(() => switcher.OnAppExitedAsync(appId));
+appHost.AppActivated += appId => _ = switcher.SafelyAsync(() => switcher.OnAppActivatedAsync(appId));
+
+// "Continue watching": the app host looks at Edge apps' pages every few seconds and reports them here.
+var continueWatching = app.Services.GetRequiredService<ContinueService>();
+appHost.PageObserved += (appId, page) => continueWatching.Observe(appId, page);
+app.Lifetime.ApplicationStopping.Register(continueWatching.Flush);
+
+// What's playing, for the phone remote. Runs in the background; failing only hides the card on the phone.
+_ = app.Services.GetRequiredService<NowPlayingService>().StartAsync();
+
+// A text field focused on the TV brings up the phone's keyboard.
+var textFocus = app.Services.GetRequiredService<HomeTV.Core.Platform.ITextFocus>();
+textFocus.Changed += field => session.Publish(new TextFocusEvent(field));
+textFocus.Start();
+
+// The phone shows its scroll strip only when there's something under the pointer to scroll.
+app.Services.GetRequiredService<ScrollHint>().Start();
+
+// The launcher's audio button: notices a Bluetooth speaker connecting, or the default device changing elsewhere.
+app.Services.GetRequiredService<AudioOutputService>().Start();
 
 #if WINDOWS
 // HomeTV:Launcher = Fullscreen (the TV), Windowed (development), or None (use a browser).

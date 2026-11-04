@@ -4,6 +4,8 @@
     "name": "Prime Video",
     "kind": "edge",
     "target": "https://www.primevideo.com",
+    "edgeProfile": "prime",
+    "resumePattern": "^https://www\\.primevideo\\.com/(.*/)?detail/",
     "hdr": true,
     "color": "#1399ff"
   },
@@ -12,6 +14,7 @@
     "name": "Fubo",
     "kind": "edge",
     "target": "https://www.fubo.tv/welcome",
+    "edgeProfile": "fubo",
     "hdr": false,
     "color": "#fa4616"
   },
@@ -21,6 +24,8 @@
     "kind": "edge",
     "target": "https://www.youtube.com",
     "edgeProfile": "youtube",
+    "resumePattern": "^https://www\\.youtube\\.com/watch\\?",
+    "resumeTimeParam": "t",
     "hdr": true,
     "color": "#ff0033"
   },
@@ -40,6 +45,7 @@
     "kind": "shell",
     "target": "spotify:",
     "windowProcess": "Spotify",
+    "playInBackground": true,
     "color": "#1db954"
   }
 ]
