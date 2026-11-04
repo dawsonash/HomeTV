@@ -27,6 +27,22 @@ internal static class TopLevelWindows
         return windows;
     }
 
+    /// <summary>Every app window (visible, unowned, not a tool window), whatever its process.</summary>
+    public static List<TopLevelWindow> All()
+    {
+        var windows = new List<TopLevelWindow>();
+        EnumWindows((hWnd, _) =>
+        {
+            if (IsAppWindow(hWnd))
+            {
+                GetWindowThreadProcessId(hWnd, out var pid);
+                windows.Add(new TopLevelWindow(hWnd, (int)pid, "", Title(hWnd)));
+            }
+            return true;
+        }, IntPtr.Zero);
+        return windows;
+    }
+
     public static bool IsOpen(IntPtr hWnd) => IsWindow(hWnd) && IsWindowVisible(hWnd);
 
     public static string Title(IntPtr hWnd)

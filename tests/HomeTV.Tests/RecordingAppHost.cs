@@ -38,6 +38,13 @@ internal sealed class RecordingAppHost(List<string>? calls = null) : IAppHost
         return Task.CompletedTask;
     }
 
+    public Task SignInAsync(AppDefinition app, CancellationToken ct = default)
+    {
+        Calls.Add($"sign in {app.Id}");
+        Open.Add(app.Id);
+        return Task.CompletedTask;
+    }
+
     public Task CloseAsync(string appId, CancellationToken ct = default)
     {
         Calls.Add($"close {appId}");
@@ -69,4 +76,6 @@ internal sealed class RecordingAppHost(List<string>? calls = null) : IAppHost
     public event Action<string>? AppActivated { add { } remove { } }
 
     public event Action<string, PageSnapshot>? PageObserved { add { } remove { } }
+
+    public event Action<AppDefinition>? AppDiscovered { add { } remove { } }
 }

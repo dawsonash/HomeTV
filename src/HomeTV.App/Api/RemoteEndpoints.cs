@@ -12,9 +12,11 @@ internal static class RemoteEndpoints
 
     public static void MapRemoteEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/apps", (HttpContext context, AppRegistry apps) =>
+        // The launcher tiles; with ?all=true, also the apps found running (Steam games), for the phone's open-apps list.
+        app.MapGet("/api/apps", (HttpContext context, AppRegistry apps, bool? all) =>
             Auth.IsAuthorized(context)
-                ? Results.Ok(apps.Apps.Select(a => new { a.Id, a.Name, a.Color }))
+                ? Results.Ok((all == true ? apps.All : apps.Apps)
+                    .Select(a => new { a.Id, a.Name, a.Color, CanSignIn = a.SignInUrl is not null && !a.Untrusted }))
                 : Results.Unauthorized());
 
         // A touchpad tap, as a request the phone waits on rather than a WebSocket message: the answer says whether

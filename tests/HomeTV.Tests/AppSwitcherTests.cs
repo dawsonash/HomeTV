@@ -202,4 +202,63 @@ public class AppSwitcherTests
 
         Assert.Equal(["youtube", "prime", "fubo", "games"], _session.State.Split);
     }
+
+    private static readonly AppDefinition Game = new()
+    {
+        Id = "steam-570", Name = "Dota 2", Kind = AppKind.Shell, Target = "steam://rungameid/570", WindowProcess = "dota2",
+    };
+
+    [Fact]
+    public async Task A_game_started_from_Big_Picture_becomes_an_open_app_in_front()
+    {
+        await _switcher.LaunchAsync(App("games"));
+        await _switcher.OnAppDiscoveredAsync(Game);
+
+        Assert.Equal("steam-570", _session.ForegroundAppId);
+        Assert.Equal(["steam-570", "games"], _session.State.Running);
+        Assert.Equal("Dota 2", _apps.Find("steam-570")?.Name);
+        // Not a launcher tile.
+        Assert.DoesNotContain(_apps.Apps, a => a.Id == "steam-570");
+    }
+
+    [Fact]
+    public async Task A_game_can_be_tiled_and_closed_like_an_app()
+    {
+        _host.Open.Add("steam-570");
+        await _switcher.LaunchAsync(App("youtube"));
+        await _switcher.OnAppDiscoveredAsync(Game);
+
+        await _switcher.SplitAsync(["steam-570", "youtube"]);
+        Assert.Equal(["steam-570", "youtube"], _session.State.Split);
+
+        _host.Calls.Clear();
+        await _switcher.CloseAsync("steam-570");
+
+        Assert.Contains("close steam-570", _host.Calls);
+        Assert.Null(_apps.Find("steam-570"));
+        Assert.Equal(["youtube"], _session.State.Running);
+        Assert.Equal("youtube", _session.ForegroundAppId);
+    }
+
+    [Fact]
+    public async Task Sign_in_opens_the_apps_sign_in_page_in_front()
+    {
+        var apps = new AppRegistry([
+            new AppDefinition { Id = "youtube", Name = "YouTube", Kind = AppKind.Edge, Target = "https://www.youtube.com", EdgeProfile = "youtube", SignInUrl = "https://accounts.google.com/" },
+        ]);
+        var switcher = new AppSwitcher(_host, apps, _session, new AppSwitcherOptions(), NullLogger<AppSwitcher>.Instance);
+
+        await switcher.SignInAsync(apps.Find("youtube")!);
+
+        Assert.Equal(["sign in youtube"], _host.Calls);
+        Assert.Equal("youtube", _session.ForegroundAppId);
+    }
+
+    [Fact]
+    public void An_untrusted_app_needs_its_own_Edge_profile()
+    {
+        Assert.Throws<InvalidOperationException>(() => new AppRegistry([
+            new AppDefinition { Id = "sketchy", Name = "Sketchy", Kind = AppKind.Edge, Target = "https://example.com", Untrusted = true },
+        ]));
+    }
 }

@@ -509,6 +509,25 @@ function speedControl(device: PairedDeviceInfo): HTMLElement {
   return wrap;
 }
 
+/** Settings → Accounts: "Sign in to YouTube" for each app with a sign-in page. */
+function renderSignIn(): void {
+  const signIn = apps.filter((a) => a.canSignIn);
+  $("#accounts").hidden = signIn.length === 0;
+  $("#sign-in-buttons").replaceChildren(
+    ...signIn.map((app) => {
+      const el = document.createElement("button");
+      el.dataset.focusable = "";
+      el.textContent = `Sign in to ${app.name}`;
+      el.addEventListener("click", async () => {
+        toast(`Opening ${app.name} sign-in…`);
+        const response = await post(`/api/system/sign-in/${encodeURIComponent(app.id)}`);
+        if (!response.ok) toast(`Couldn't open ${app.name} sign-in`);
+      });
+      return el;
+    }),
+  );
+}
+
 function post(path: string): Promise<Response> {
   return fetch(path, { method: "POST" });
 }
@@ -604,6 +623,7 @@ fetch("/api/apps")
   .then((loaded) => {
     apps = loaded;
     renderTiles();
+    renderSignIn();
     // After the apps, so cards can use their names and colors.
     void loadContinue();
   });

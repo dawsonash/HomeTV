@@ -20,6 +20,15 @@
 .PARAMETER UnregisterShell
   Restores Explorer as the tv user's shell.
 
+.PARAMETER SkipRgb
+  Don't install OpenRGB or the task that turns the RAM sticks' RGB off at boot, sign-in and wake.
+
+.PARAMETER RgbAllDevices
+  Turn off every RGB device OpenRGB finds (GPU, motherboard, fans), not just the RAM.
+
+.PARAMETER SkipEdgeLockdown
+  Don't set the tv user's Edge policies (no downloads, no site notifications, SmartScreen can't be clicked past).
+
 .PARAMETER SkipAdBlock
   Don't force-install uBlock Origin Lite and SponsorBlock into Edge. Remove them later by deleting their values
   under HKLM\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist.
@@ -30,7 +39,10 @@ param(
     [string]$InstallDir = "C:\HomeTV",
     [switch]$RegisterShell,
     [switch]$UnregisterShell,
-    [switch]$SkipAdBlock
+    [switch]$SkipAdBlock,
+    [switch]$SkipRgb,
+    [switch]$RgbAllDevices,
+    [switch]$SkipEdgeLockdown
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,8 +51,8 @@ function Step($message) { Write-Host "`n==> $message" -ForegroundColor Cyan }
 $exe = Join-Path $InstallDir "app\HomeTV.exe"
 $shellKey = "Software\Microsoft\Windows NT\CurrentVersion\Winlogon"
 
-# Per-user shell lives in the tv user's own registry hive (HKCU while they're logged in).
-function Set-TvUserShell([string]$value) {
+# Runs $action with the tv user's own registry hive (their HKCU) as its argument, loading it if they're signed out.
+function Invoke-WithTvUserHive([scriptblock]$action) {
     $sid = (New-Object System.Security.Principal.NTAccount($TvUser)).Translate([System.Security.Principal.SecurityIdentifier]).Value
     $loaded = Test-Path "Registry::HKEY_USERS\$sid"
     if (-not $loaded) {
@@ -49,13 +61,19 @@ function Set-TvUserShell([string]$value) {
         $hive = Join-Path $profile.LocalPath "NTUSER.DAT"
         reg load "HKU\$sid" $hive | Out-Null
     }
-    try {
-        $path = "Registry::HKEY_USERS\$sid\$shellKey"
-        if ($value) { New-ItemProperty -Path $path -Name Shell -Value $value -PropertyType String -Force | Out-Null }
-        else { Remove-ItemProperty -Path $path -Name Shell -ErrorAction SilentlyContinue }
-    }
+    try { & $action "Registry::HKEY_USERS\$sid" }
     finally {
         if (-not $loaded) { [gc]::Collect(); reg unload "HKU\$sid" | Out-Null }
+    }
+}
+
+# Per-user shell lives in the tv user's own registry hive.
+function Set-TvUserShell([string]$value) {
+    Invoke-WithTvUserHive {
+        param($root)
+        $path = "$root\$shellKey"
+        if ($value) { New-ItemProperty -Path $path -Name Shell -Value $value -PropertyType String -Force | Out-Null }
+        else { Remove-ItemProperty -Path $path -Name Shell -ErrorAction SilentlyContinue }
     }
 }
 
@@ -158,6 +176,73 @@ if (-not $SkipAdBlock) {
         $next++
     }
     Write-Host "Edge picks these up within a few minutes, or at its next start (edge://policy shows them)."
+}
+
+if (-not $SkipEdgeLockdown) {
+    # Only the tv user's Edge (their HKCU policies), so the admin account can still download things. These cover the
+    # free streaming sites in apps.json ("untrusted": true) in particular: no file can be downloaded at all, sites
+    # can't ask to send notifications (the usual way they keep spamming after you leave), and a SmartScreen warning
+    # about a malicious page or file can't be clicked past. HomeTV itself closes those sites' pop-ups.
+    Step "Edge lockdown for '$TvUser': no downloads, no site notifications, strict SmartScreen"
+    try {
+        Invoke-WithTvUserHive {
+            param($root)
+            $edgePolicies = "$root\Software\Policies\Microsoft\Edge"
+            New-Item -Path $edgePolicies -Force | Out-Null
+            $policies = [ordered]@{
+                DownloadRestrictions                     = 3   # Block all downloads
+                DefaultNotificationsSetting              = 2   # No site may show notifications
+                SmartScreenEnabled                       = 1
+                SmartScreenPuaEnabled                    = 1   # Also potentially unwanted apps
+                PreventSmartScreenPromptOverride         = 1
+                PreventSmartScreenPromptOverrideForFiles = 1
+                TyposquattingCheckerEnabled              = 1
+            }
+            foreach ($name in $policies.Keys) {
+                New-ItemProperty -Path $edgePolicies -Name $name -Value $policies[$name] -PropertyType DWord -Force | Out-Null
+            }
+        }
+        Write-Host "Set. Check edge://policy in one of the tv user's Edge windows. Undo: delete HKCU\Software\Policies\Microsoft\Edge for '$TvUser'."
+    }
+    catch { Write-Warning "Couldn't set the tv user's Edge policies: $_" }
+}
+
+if (-not $SkipRgb) {
+    # The RAM's RGB comes on at every boot (and often after sleep). OpenRGB needs admin rights to reach it over the
+    # SMBus, so a SYSTEM task does it, at startup, when the tv user signs in, and on wake. OpenRGB 1.0 reaches the
+    # SMBus through the PawnIO driver instead of the old WinRing0 one, so that's installed too.
+    Step "RGB: OpenRGB turns the RAM lighting off at boot, sign-in and wake"
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        foreach ($id in @("namazso.PawnIO", "OpenRGB.OpenRGB")) {
+            winget install --id $id --exact --silent --scope machine --accept-package-agreements --accept-source-agreements --disable-interactivity
+            if ($LASTEXITCODE -ne 0) { Write-Warning "winget install $id exited with $LASTEXITCODE; install it manually." }
+        }
+    }
+    else { Write-Warning "winget not available in this session; install OpenRGB (and PawnIO) manually." }
+
+    $openRgb = Get-ChildItem -Path "$env:ProgramFiles\OpenRGB", "$env:ProgramFiles\WinGet\Packages", "${env:ProgramFiles(x86)}\OpenRGB" `
+        -Filter OpenRGB.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+    if (-not $openRgb) { Write-Warning "OpenRGB.exe not found after installing; the task will look for it again each time it runs." }
+    else { Write-Host "OpenRGB: $openRgb" }
+
+    $rgbScript = Join-Path $InstallDir "rgb-off.ps1"
+    Copy-Item (Join-Path $PSScriptRoot "rgb-off.ps1") $rgbScript -Force
+    $rgbArgs = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$rgbScript`""
+    if ($openRgb) { $rgbArgs += " -OpenRgb `"$openRgb`"" }
+    if ($RgbAllDevices) { $rgbArgs += " -AllDevices" }
+
+    # Waking from sleep: the Power-Troubleshooter "system resumed" event.
+    $wake = Get-CimClass -ClassName MSFT_TaskEventTrigger -Namespace Root/Microsoft/Windows/TaskScheduler | New-CimInstance -ClientOnly
+    $wake.Enabled = $true
+    $wake.Subscription = "<QueryList><Query Id='0' Path='System'><Select Path='System'>*[System[Provider[@Name='Microsoft-Windows-Power-Troubleshooter'] and EventID=1]]</Select></Query></QueryList>"
+    $triggers = @((New-ScheduledTaskTrigger -AtStartup), (New-ScheduledTaskTrigger -AtLogOn -User $TvUser), $wake)
+
+    Register-ScheduledTask -TaskName "HomeTV-RGB-Off" -Force `
+        -Action (New-ScheduledTaskAction -Execute "powershell.exe" -Argument $rgbArgs) `
+        -Trigger $triggers `
+        -Principal (New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest) `
+        -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew) | Out-Null
+    Write-Host "Registered HomeTV-RGB-Off. Try it now: Start-ScheduledTask HomeTV-RGB-Off; then read $InstallDir\rgb-off.log"
 }
 
 Step "Restart task (lets deploys restart HomeTV inside the $TvUser desktop session)"

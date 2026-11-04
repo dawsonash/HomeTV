@@ -40,6 +40,18 @@ internal static class SystemEndpoints
             return Results.Accepted();
         });
 
+        // Opens an app's sign-in page in a normal Edge window (see AppDefinition.SignInUrl).
+        app.MapPost("/api/system/sign-in/{appId}", async (HttpContext context, string appId, HomeTV.Core.Apps.AppRegistry apps, HomeTV.Core.Apps.AppSwitcher switcher) =>
+        {
+            if (!Auth.IsLauncher(context))
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            if (apps.Find(appId) is not { SignInUrl: not null, Untrusted: false } app)
+                return Results.NotFound();
+
+            await switcher.SignInAsync(app, context.RequestAborted);
+            return Results.Accepted();
+        });
+
         app.MapPost("/api/system/restart-pc", (HttpContext context, IPower power) =>
         {
             if (!Auth.IsLauncher(context))

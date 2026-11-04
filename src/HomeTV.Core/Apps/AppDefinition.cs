@@ -65,4 +65,21 @@ public sealed record AppDefinition
 
     /// <summary>Query parameter that starts the video at a time in seconds when resuming, e.g. <c>t</c> for YouTube.</summary>
     public string? ResumeTimeParam { get; init; }
+
+    /// <summary>
+    /// Edge apps with a profile: a page for signing in to the site, which Settings opens in a normal Edge window
+    /// without the DevTools port. Google refuses to sign in to a browser that has the port open ("This browser or
+    /// app may not be secure"), so YouTube needs this once; the sign-in sticks to the profile afterwards.
+    /// </summary>
+    public string? SignInUrl { get; init; }
+
+    /// <summary>
+    /// A site you don't trust (free streaming sites full of pop-up ads). Edge apps with a profile only: any extra
+    /// tab or window the page opens is closed at once, and HomeTV never opens the sign-in page for it.
+    /// </summary>
+    public bool Untrusted { get; init; }
+
+    /// <summary>Found running rather than declared in apps.json (a Steam game): not a launcher tile.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Discovered { get; init; }
 }

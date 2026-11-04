@@ -47,6 +47,14 @@ public sealed class FakeAppHost(ILogger<FakeAppHost> logger) : IAppHost
         return Task.CompletedTask;
     }
 
+    public Task SignInAsync(AppDefinition app, CancellationToken ct = default)
+    {
+        logger.LogInformation("Sign in to {App} → {Url}", app.Name, app.SignInUrl);
+        lock (_running)
+            _running.Add(app.Id);
+        return Task.CompletedTask;
+    }
+
     public Task CloseAsync(string appId, CancellationToken ct = default)
     {
         logger.LogInformation("Close {App}", appId);
@@ -81,6 +89,9 @@ public sealed class FakeAppHost(ILogger<FakeAppHost> logger) : IAppHost
     public event Action<string>? AppExited { add { } remove { } }
 
     public event Action<string>? AppActivated { add { } remove { } }
+
+    // No Steam games on the Mac.
+    public event Action<AppDefinition>? AppDiscovered { add { } remove { } }
 
     // Fake apps have no pages to look at.
     public event Action<string, PageSnapshot>? PageObserved { add { } remove { } }

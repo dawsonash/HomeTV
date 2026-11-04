@@ -132,6 +132,8 @@ var appHost = app.Services.GetRequiredService<HomeTV.Core.Platform.IAppHost>();
 var switcher = app.Services.GetRequiredService<AppSwitcher>();
 appHost.AppExited += appId => _ = switcher.SafelyAsync(() => switcher.OnAppExitedAsync(appId));
 appHost.AppActivated += appId => _ = switcher.SafelyAsync(() => switcher.OnAppActivatedAsync(appId));
+// A Steam game started from Big Picture joins the open apps, so the phone can switch to, tile and close it.
+appHost.AppDiscovered += found => _ = switcher.SafelyAsync(() => switcher.OnAppDiscoveredAsync(found));
 
 // "Continue watching": the app host looks at Edge apps' pages every few seconds and reports them here.
 var continueWatching = app.Services.GetRequiredService<ContinueService>();
