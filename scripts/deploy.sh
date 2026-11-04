@@ -21,7 +21,7 @@ rm -rf "$out"
 dotnet publish "$root/src/HomeTV.App" -c Release -f net10.0-windows -r win-x64 --self-contained -o "$out" --nologo -v quiet
 
 echo "==> Copying to $HOMETV_SSH"
-ssh "$HOMETV_SSH" "powershell -NoProfile -Command \"Remove-Item C:\\HomeTV\\staging\\* -Recurse -Force -ErrorAction SilentlyContinue\""
+ssh "$HOMETV_SSH" "powershell -NoProfile -Command \"New-Item -ItemType Directory -Force C:\\HomeTV\\staging | Out-Null; Remove-Item C:\\HomeTV\\staging\\* -Recurse -Force -ErrorAction SilentlyContinue\""
 scp -rq "$out"/* "$HOMETV_SSH:C:/HomeTV/staging/"
 
 echo "==> Restarting HomeTV on the box"
