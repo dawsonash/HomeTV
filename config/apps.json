@@ -26,6 +26,7 @@
     "edgeProfile": "youtube",
     "resumePattern": "^https://www\\.youtube\\.com/watch\\?",
     "resumeTimeParam": "t",
+    "signInUrl": "https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F",
     "hdr": true,
     "color": "#ff0033"
   },
@@ -36,7 +37,7 @@
     "target": "steam://open/bigpicture",
     "windowProcess": "steamwebhelper",
     "windowTitle": "Big Picture",
-    "closeTarget": "steam://close/bigpicture",
+    "closeTarget": "steam://exit",
     "color": "#66c0f4"
   },
   {

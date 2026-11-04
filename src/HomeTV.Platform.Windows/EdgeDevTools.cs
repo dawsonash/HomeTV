@@ -249,6 +249,67 @@ internal static class EdgeDevTools
             ? value.GetBoolean()
             : null;
 
+    /// <summary>
+    /// Closes the profile's whole browser (every window, then the process), the way quitting Edge does, so cookies
+    /// and the session are saved. False if Edge isn't answering.
+    /// </summary>
+    public static async Task<bool> CloseBrowserAsync(int port, CancellationToken ct)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(Timeout);
+        try
+        {
+            var version = await Http.GetFromJsonAsync<BrowserVersion>($"http://127.0.0.1:{port}/json/version", cts.Token);
+            if (version?.WebSocketDebuggerUrl is not { } browserUrl)
+                return false;
+            await using var browser = await Cdp.ConnectAsync(browserUrl, cts.Token);
+            await browser.CallAsync("Browser.close", new { }, cts.Token);
+            return true;
+        }
+        catch (Exception ex) when (IsEdgeGone(ex, ct))
+        {
+            // Edge may drop the connection before answering, because it's closing. Either way it's on its way out.
+            return ex is CdpException or WebSocketException;
+        }
+    }
+
+    /// <summary>
+    /// For an untrusted site: closes every tab and window in the profile except <paramref name="keep"/> (the app's
+    /// own page), which is what pop-up and pop-under ads open. With <paramref name="keep"/> null it first picks the
+    /// page to keep (the oldest) and returns it. Null if Edge isn't answering.
+    /// </summary>
+    public static async Task<string?> CloseOtherPagesAsync(int port, string? keep, CancellationToken ct)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(Timeout);
+        try
+        {
+            var version = await Http.GetFromJsonAsync<BrowserVersion>($"http://127.0.0.1:{port}/json/version", cts.Token);
+            if (version?.WebSocketDebuggerUrl is not { } browserUrl)
+                return null;
+            await using var browser = await Cdp.ConnectAsync(browserUrl, cts.Token);
+            var result = await browser.CallAsync("Target.getTargets", new { }, cts.Token);
+            // Oldest first: the order targets were created in isn't promised, but a page's id doesn't change on
+            // navigation, so the one kept from the first look stays the app's page.
+            var pages = result.GetProperty("targetInfos").EnumerateArray()
+                .Where(t => t.GetProperty("type").GetString() == "page")
+                .Select(t => t.GetProperty("targetId").GetString()!)
+                .ToList();
+            if (pages.Count == 0)
+                return keep;
+            keep ??= pages[^1];
+            if (!pages.Contains(keep))
+                return keep; // The app's page is gone (the window's closing); don't close what's left.
+            foreach (var id in pages.Where(id => id != keep))
+                await browser.CallAsync("Target.closeTarget", new { targetId = id }, cts.Token);
+            return keep;
+        }
+        catch (Exception ex) when (IsEdgeGone(ex, ct))
+        {
+            return keep;
+        }
+    }
+
     /// <summary>The screen size in DIPs, as the profile's page sees it.</summary>
     public static async Task<EdgeWindowMetrics?> MetricsAsync(int port, CancellationToken ct) =>
         await EvaluateAsync(port, MetricsScript, ct) is { ValueKind: JsonValueKind.Object } json

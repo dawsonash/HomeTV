@@ -73,6 +73,12 @@ input:focus { outline: none; border-color: var(--accent); }
 header { display: flex; align-items: center; gap: 10px; padding: 12px 0; }
 header button.icon { background: none; color: var(--muted); }
 #now-showing { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Scroll strip toggle, beside Sleep: an arrow with its mode (auto / on / off) under it. */
+header button.scroll-toggle { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; width: 52px; }
+.scroll-toggle svg { width: 20px; height: 20px; }
+.scroll-mode { font-size: 10px; line-height: 1; text-transform: uppercase; letter-spacing: 0.04em; }
+header button.scroll-toggle.on { color: var(--accent); }
+header button.scroll-toggle.off { opacity: 0.5; }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }
 .dot.online { background: var(--ok); }
 button[hidden], ul[hidden], #scrollstrip[hidden] { display: none; }

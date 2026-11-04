@@ -95,12 +95,18 @@ header {
 @keyframes audio-busy { to { opacity: 0.4; } }
 body.in-settings .audio-button { display: none; }
 
+/* The header on top, then main takes the rest of the screen. */
+body { display: flex; flex-direction: column; }
+
 main {
-  height: 80vh;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  padding: 0 5vw;
+  /* "safe": when widgets, tiles and Continue watching don't all fit, keep the top in place (clear of the speaker
+     button) rather than centering them up under the header. */
+  justify-content: safe center;
+  padding: 3vh 5vw 4vh;
 }
 
 .tiles {

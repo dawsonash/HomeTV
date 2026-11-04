@@ -114,11 +114,14 @@ async function showMain(): Promise<void> {
         running = event.running ?? [];
         split = event.split ?? null;
         renderState();
+        // A game started from Steam shows up under a name the phone hasn't heard yet.
+        if (apps.length > 0 && running.some((id) => !apps.some((a) => a.id === id))) void loadAppNames();
       } else if (event.type === "textFocus") {
         onTextFocus(event.field);
       } else if (event.type === "scrollable") {
-        // The strip only shows when there's something to scroll; the touchpad takes its space otherwise.
-        $("#scrollstrip").hidden = !event.scrollable;
+        // In auto, the strip only shows when there's something to scroll; the touchpad takes its space otherwise.
+        scrollable = event.scrollable;
+        renderScrollStrip();
       }
     },
     // A failed upgrade looks like a plain close; check whether this phone was unpaired.
@@ -133,8 +136,12 @@ async function showMain(): Promise<void> {
     },
   });
 
-  // Only for the names in "Open now".
-  const response = await fetch("/api/apps");
+  await loadAppNames();
+}
+
+/** Only for the names in "Open now". Includes running Steam games, which aren't launcher tiles. */
+async function loadAppNames(): Promise<void> {
+  const response = await fetch("/api/apps?all=true");
   if (response.ok) {
     apps = await response.json();
     renderState(); // The state may have arrived before the app names did.
@@ -254,6 +261,47 @@ $("#home").addEventListener("click", () => {
   buzz();
   socket?.send({ type: "home" });
 });
+
+// ---------- Scroll strip toggle ----------
+//
+// Auto follows the box (strip only when the page under the pointer scrolls); On and Off override it. Remembered
+// on this phone.
+
+type ScrollMode = "auto" | "on" | "off";
+const SCROLL_MODES: ScrollMode[] = ["auto", "on", "off"];
+const SCROLL_MODE_KEY = "hometv.scrollMode";
+let scrollable = true;
+let scrollMode: ScrollMode = loadScrollMode();
+
+function loadScrollMode(): ScrollMode {
+  try {
+    const saved = localStorage.getItem(SCROLL_MODE_KEY) as ScrollMode | null;
+    return saved && SCROLL_MODES.includes(saved) ? saved : "auto";
+  } catch {
+    return "auto";
+  }
+}
+
+function renderScrollStrip(): void {
+  $("#scrollstrip").hidden = scrollMode === "off" || (scrollMode === "auto" && !scrollable);
+  const toggle = $("#scroll-toggle");
+  toggle.classList.toggle("on", scrollMode === "on");
+  toggle.classList.toggle("off", scrollMode === "off");
+  toggle.querySelector(".scroll-mode")!.textContent = scrollMode;
+  toggle.setAttribute("aria-label", `Scroll strip: ${scrollMode}`);
+}
+
+$("#scroll-toggle").addEventListener("click", () => {
+  buzz();
+  scrollMode = SCROLL_MODES[(SCROLL_MODES.indexOf(scrollMode) + 1) % SCROLL_MODES.length];
+  try {
+    localStorage.setItem(SCROLL_MODE_KEY, scrollMode);
+  } catch {
+    // Private mode: it just won't be remembered.
+  }
+  renderScrollStrip();
+});
+renderScrollStrip();
 
 $("#sleep").addEventListener("click", () => {
   if (confirm("Put the TV box to sleep?")) socket?.send({ type: "sleep" });

@@ -24,7 +24,17 @@ public interface IAppHost
     /// <summary>Brings the launcher in front of every app. The apps keep running behind it.</summary>
     Task ShowLauncherAsync(CancellationToken ct = default);
 
-    /// <summary>Closes a running app. Doesn't raise <see cref="AppExited"/>.</summary>
+    /// <summary>
+    /// Opens an Edge app's <see cref="AppDefinition.SignInUrl"/> in a normal Edge window on its profile, without the
+    /// DevTools port, after closing the app (and every Edge process on that profile) if it's open. The window is
+    /// tracked as the app until it's closed.
+    /// </summary>
+    Task SignInAsync(AppDefinition app, CancellationToken ct = default);
+
+    /// <summary>
+    /// Closes a running app for real: politely first, then by ending its process if it's still there a few seconds
+    /// later (Spotify hides in the tray, Edge keeps running in the background). Doesn't raise <see cref="AppExited"/>.
+    /// </summary>
     Task CloseAsync(string appId, CancellationToken ct = default);
 
     /// <summary>Pauses any video or audio an app is playing, where the app allows it (Edge apps with a profile).</summary>
@@ -50,6 +60,12 @@ public interface IAppHost
     /// appeared). Not raised for <see cref="CloseAsync"/>.
     /// </summary>
     event Action<string>? AppExited;
+
+    /// <summary>
+    /// Raised when an app HomeTV didn't launch shows up, e.g. a Steam game started from Big Picture. It's running and
+    /// in front; the host tracks it from then on (Home, close, split screen, <see cref="AppExited"/>) like a launched app.
+    /// </summary>
+    event Action<AppDefinition>? AppDiscovered;
 
     /// <summary>Raised when a tiled app's window takes focus without HomeTV asking (the user clicked into it).</summary>
     event Action<string>? AppActivated;

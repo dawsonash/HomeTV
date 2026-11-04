@@ -298,4 +298,21 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     public static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
+
+    // Which program owns a window, and how it was started (ProcessInfo).
+    public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    public const int ProcessCommandLineInformation = 60;
+    public const int STATUS_INFO_LENGTH_MISMATCH = unchecked((int)0xC0000004);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr OpenProcess(uint access, bool inheritHandle, int processId);
+
+    [DllImport("kernel32.dll")]
+    public static extern bool CloseHandle(IntPtr handle);
+
+    [DllImport("kernel32.dll", EntryPoint = "QueryFullProcessImageNameW", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern bool QueryFullProcessImageName(IntPtr process, uint flags, char[] name, ref int size);
+
+    [DllImport("ntdll.dll")]
+    public static extern int NtQueryInformationProcess(IntPtr process, int infoClass, IntPtr info, int length, out int returnLength);
 }

@@ -34,7 +34,7 @@ It prints a line like `irm http://10.0.0.138:8899/go.txt | iex`. On the PC, open
 The Mac's `~/.ssh/config` has a `hometv` alias (`User admin`, `HostName hometv.local`). Until the box is renamed, use the printed IP and username.
 
 ## 5. Remote provisioning (done over SSH)
-- `setup-box.ps1`: computer name `hometv`, passwordless `tv` couch user + auto-login, firewall, power settings, Steam, HEVC codec, restart task.
+- `setup-box.ps1` (copy `rgb-off.ps1` next to it): computer name `hometv`, passwordless `tv` couch user + auto-login, firewall, power settings, Steam, HEVC codec, Edge ad blocking and lockdown for the tv user, OpenRGB task that turns the RAM lighting off, restart task.
 - [Win11Debloat](https://github.com/Raphire/Win11Debloat), default mode, keeping **Microsoft Edge** (needed for PlayReady DRM).
 - Latest **NVIDIA driver** (Game Ready).
 - Reboot, then `scripts/deploy.sh`.

@@ -22,7 +22,7 @@ public class AppRegistryTests
 
         Assert.Equal("steamwebhelper", games.WindowProcess);
         Assert.Equal("Big Picture", games.WindowTitle);
-        Assert.Equal("steam://close/bigpicture", games.CloseTarget);
+        Assert.Equal("steam://exit", games.CloseTarget);
     }
 
     [Fact]

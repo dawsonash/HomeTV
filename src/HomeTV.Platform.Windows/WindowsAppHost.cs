@@ -18,8 +18,29 @@ namespace HomeTV.Platform.Windows;
 /// Edge apps with their own profile are moved and tiled through DevTools (<see cref="EdgeDevTools"/>), which knows
 /// about full screen and the window chrome; anything else is moved with plain Win32 calls.
 /// </remarks>
-public sealed class WindowsAppHost(LauncherWindow launcher, ILogger<WindowsAppHost> logger) : IAppHost, IDisposable
+public sealed class WindowsAppHost : IAppHost, IDisposable
 {
+    private readonly LauncherWindow launcher;
+    private readonly ILogger<WindowsAppHost> logger;
+
+    public WindowsAppHost(LauncherWindow launcher, ILogger<WindowsAppHost> logger)
+    {
+        this.launcher = launcher;
+        this.logger = logger;
+        _ = Task.Run(WatchSteamAsync);
+    }
+
+    /// <summary>How long a closed app gets to quit by itself before its process is ended.</summary>
+    private static readonly TimeSpan CloseGrace = TimeSpan.FromSeconds(8);
+
+    /// <summary>How often to look for a Steam game that started.</summary>
+    private static readonly TimeSpan SteamPollInterval = TimeSpan.FromSeconds(2);
+
+    /// <summary>A game HomeTV closed isn't picked up again while it's still on its way out.</summary>
+    private static readonly TimeSpan ClosedGameQuietPeriod = TimeSpan.FromSeconds(20);
+
+    private readonly CancellationTokenSource _disposed = new();
+    private readonly Dictionary<string, DateTime> _closedGames = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Steam may have to start (and update) first, so give windows a while to appear.</summary>
     private static readonly TimeSpan WindowTimeout = TimeSpan.FromSeconds(90);
 
@@ -55,6 +76,8 @@ public sealed class WindowsAppHost(LauncherWindow launcher, ILogger<WindowsAppHo
 
     public event Action<string, PageSnapshot>? PageObserved;
 
+    public event Action<AppDefinition>? AppDiscovered;
+
     public Task LaunchAsync(AppDefinition app, string? url = null, CancellationToken ct = default)
     {
         var windowProcess = WindowProcess(app);
@@ -76,6 +99,46 @@ public sealed class WindowsAppHost(LauncherWindow launcher, ILogger<WindowsAppHo
             return Task.CompletedTask;
         }
 
+        Track(app, windowProcess, existing);
+        return Task.CompletedTask;
+    }
+
+    public async Task SignInAsync(AppDefinition app, CancellationToken ct = default)
+    {
+        if (ProfileDir(app) is not { } profileDir || app.SignInUrl is not { } url)
+            return;
+
+        // The DevTools port is opened by the profile's browser process, and a new window joins the running one,
+        // so Edge must be fully closed for the sign-in window to come up without it.
+        if (Get(app.Id) is not null)
+            await CloseAsync(app.Id, ct);
+        else if (EdgeDevTools.ReadPort(profileDir) is { } port)
+            await EdgeDevTools.CloseBrowserAsync(port, ct);
+        await EndEdgeProfileAsync(app, profileDir, ct);
+        try
+        {
+            // Edge rewrites it when it opens the port; left over, it would point HomeTV at a port nobody listens on.
+            File.Delete(Path.Combine(profileDir, "DevToolsActivePort"));
+        }
+        catch (IOException)
+        {
+        }
+
+        var existing = TopLevelWindows.List("msedge").Select(w => w.Handle).ToHashSet();
+        var startInfo = new ProcessStartInfo(EdgePath);
+        startInfo.ArgumentList.Add($"--user-data-dir={profileDir}");
+        startInfo.ArgumentList.Add("--no-first-run");
+        startInfo.ArgumentList.Add("--start-maximized");
+        startInfo.ArgumentList.Add("--force-renderer-accessibility=basic"); // So the phone's keyboard comes up.
+        startInfo.ArgumentList.Add(url);
+        logger.LogInformation("Opening {App} sign-in: {Url}", app.Name, url);
+        Process.Start(startInfo)?.Dispose();
+        Track(app, "msedge", existing);
+    }
+
+    /// <summary>Starts watching for a just-launched app's window, and remembers it as the one in front.</summary>
+    private void Track(AppDefinition app, string windowProcess, HashSet<IntPtr> existing)
+    {
         var running = new RunningApp(app, windowProcess);
         RunningApp? replaced;
         lock (_lock)
@@ -85,8 +148,7 @@ public sealed class WindowsAppHost(LauncherWindow launcher, ILogger<WindowsAppHo
             _front = app.Id;
         }
         replaced?.Stop.Cancel();
-        _ = Task.Run(() => WatchAsync(running, existing));
-        return Task.CompletedTask;
+        _ = Task.Run(() => WatchAsync(running, existing, adopted: false));
     }
 
     public async Task<bool> WaitForWindowAsync(string appId, TimeSpan timeout, CancellationToken ct = default)
@@ -137,37 +199,103 @@ public sealed class WindowsAppHost(LauncherWindow launcher, ILogger<WindowsAppHo
         return Task.CompletedTask;
     }
 
-    public Task CloseAsync(string appId, CancellationToken ct = default)
+    public async Task CloseAsync(string appId, CancellationToken ct = default)
     {
         RunningApp? running;
         lock (_lock)
         {
             if (!_apps.Remove(appId, out running))
-                return Task.CompletedTask;
+                return;
             if (string.Equals(_front, appId, StringComparison.OrdinalIgnoreCase))
                 _front = null;
+            if (running.App.Discovered)
+                _closedGames[appId] = DateTime.UtcNow;
         }
         running.Stop.Cancel();
+        var app = running.App;
 
-        if (running.App.CloseTarget is { } closeTarget)
+        if (app.CloseTarget is { } closeTarget)
         {
-            logger.LogInformation("Closing {App} via {Target}", running.App.Name, closeTarget);
+            logger.LogInformation("Closing {App} via {Target}", app.Name, closeTarget);
             Process.Start(new ProcessStartInfo(closeTarget) { UseShellExecute = true })?.Dispose();
-            return Task.CompletedTask;
+            return;
         }
 
-        // Closed while still starting: look once more before giving up.
+        // Closed while still starting: look once more.
         var window = running.Window != IntPtr.Zero ? running.Window : FindWindow(running, []);
-        if (window == IntPtr.Zero || !TopLevelWindows.IsOpen(window))
+        var hasWindow = window != IntPtr.Zero && TopLevelWindows.IsOpen(window);
+
+        if (ProfileDir(app) is { } profileDir)
         {
-            logger.LogWarning("Couldn't find {App}'s window to close", running.App.Name);
-            return Task.CompletedTask;
+            // The app has the profile to itself, so quit its whole browser: closing just the window would leave Edge
+            // running in the background. Browser.close saves cookies and the session, like quitting Edge does.
+            var closed = EdgeDevTools.ReadPort(profileDir) is { } port && await EdgeDevTools.CloseBrowserAsync(port, ct);
+            if (!closed && hasWindow)
+                PostMessage(window, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+            logger.LogInformation("Closing {App} (Edge profile {Profile})", app.Name, app.EdgeProfile);
+            _ = Task.Run(() => EndEdgeProfileAsync(app, profileDir, CancellationToken.None));
+            return;
         }
 
-        // WM_CLOSE, like clicking X: Edge saves cookies and session state, unlike killing the process.
-        logger.LogInformation("Closing {App} window 0x{Handle:X}", running.App.Name, window);
+        if (!hasWindow)
+        {
+            logger.LogWarning("Couldn't find {App}'s window to close", app.Name);
+            return;
+        }
+
+        // WM_CLOSE, like clicking X, so the app can save. Edge apps without a profile share the user's own Edge, so
+        // that's all they get; anything else is ended if it's still running after a few seconds (Spotify only hides
+        // in the tray, and games may ask "are you sure?").
+        GetWindowThreadProcessId(window, out var pid);
+        logger.LogInformation("Closing {App} window 0x{Handle:X}", app.Name, window);
         PostMessage(window, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
-        return Task.CompletedTask;
+        if (app.Kind != AppKind.Edge && pid != 0)
+            _ = Task.Run(() => EndProcessAsync(app, (int)pid));
+    }
+
+    /// <summary>Waits for a closed app's process to exit, and ends it (and its children) if it doesn't.</summary>
+    private async Task EndProcessAsync(AppDefinition app, int processId)
+    {
+        try
+        {
+            var deadline = DateTime.UtcNow + CloseGrace;
+            while (ProcessInfo.IsRunning(processId) && DateTime.UtcNow < deadline)
+                await Task.Delay(250);
+            // Opened again meanwhile (Spotify hands a new launch to the process that's still running): leave it be.
+            if (Get(app.Id) is not null)
+                return;
+            if (ProcessInfo.IsRunning(processId) && ProcessInfo.Kill(processId))
+                logger.LogInformation("{App} was still running after it was closed; ended it", app.Name);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Couldn't make sure {App} closed", app.Name);
+        }
+    }
+
+    /// <summary>Waits for every Edge process on an app's profile to exit, and ends any that don't.</summary>
+    private async Task EndEdgeProfileAsync(AppDefinition app, string profileDir, CancellationToken ct)
+    {
+        try
+        {
+            var deadline = DateTime.UtcNow + CloseGrace;
+            List<int> left;
+            while ((left = ProcessInfo.EdgeProcessesFor(profileDir)).Count > 0 && DateTime.UtcNow < deadline)
+                await Task.Delay(250, ct);
+            // Opened again meanwhile: those processes are the new one's.
+            if (left.Count == 0 || Get(app.Id) is not null)
+                return;
+            logger.LogInformation("{App}: {Count} Edge processes still running after closing; ending them", app.Name, left.Count);
+            foreach (var id in left)
+                ProcessInfo.Kill(id);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Couldn't make sure {App}'s Edge closed", app.Name);
+        }
     }
 
     public async Task PauseAsync(string appId, CancellationToken ct = default)
@@ -243,6 +371,7 @@ public sealed class WindowsAppHost(LauncherWindow launcher, ILogger<WindowsAppHo
 
     public void Dispose()
     {
+        _disposed.Cancel();
         lock (_lock)
         {
             foreach (var running in _apps.Values)
@@ -314,7 +443,66 @@ public sealed class WindowsAppHost(LauncherWindow launcher, ILogger<WindowsAppHo
         }
     }
 
-    private async Task WatchAsync(RunningApp running, HashSet<IntPtr> existing)
+    /// <summary>
+    /// Every couple of seconds, looks for a Steam game HomeTV isn't tracking yet (one started from Big Picture), and
+    /// adopts it as an app.
+    /// </summary>
+    private async Task WatchSteamAsync()
+    {
+        var ct = _disposed.Token;
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(SteamPollInterval, ct);
+                if (SteamGames.Running() is { } game)
+                    Adopt(game);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Couldn't look for a running Steam game");
+                await Task.Delay(SteamPollInterval * 5, ct).ContinueWith(_ => { }, TaskScheduler.Default);
+            }
+        }
+    }
+
+    private void Adopt(SteamGame game)
+    {
+        var app = new AppDefinition
+        {
+            Id = $"steam-{game.AppId}",
+            Name = game.Name,
+            Kind = AppKind.Shell,
+            Target = $"steam://rungameid/{game.AppId}",
+            WindowProcess = game.Window.ProcessName,
+            Color = "#66c0f4",
+            Discovered = true,
+        };
+        var running = new RunningApp(app, game.Window.ProcessName) { Window = game.Window.Handle };
+        lock (_lock)
+        {
+            if (_apps.ContainsKey(app.Id) || _apps.Values.Any(r => r.Window == game.Window.Handle))
+                return;
+            if (_closedGames.TryGetValue(app.Id, out var closedAt) && DateTime.UtcNow - closedAt < ClosedGameQuietPeriod)
+                return;
+            _closedGames.Remove(app.Id);
+            _apps[app.Id] = running;
+            // It's in front: Steam put it there.
+            _front = app.Id;
+            _activeTile = null;
+            _layout = null;
+        }
+        logger.LogInformation("Steam game {Game} ({Id}) is running in window 0x{Handle:X}", game.Name, game.AppId, game.Window.Handle);
+        _ = Task.Run(() => WatchAsync(running, [], adopted: true));
+        AppDiscovered?.Invoke(app);
+    }
+
+    /// <param name="adopted">Found already open (a Steam game), rather than launched: it's already where it should be.</param>
+    private async Task WatchAsync(RunningApp running, HashSet<IntPtr> existing, bool adopted)
     {
         var ct = running.Stop.Token;
         try
@@ -342,7 +530,11 @@ public sealed class WindowsAppHost(LauncherWindow launcher, ILogger<WindowsAppHo
                 front = _front is null ? null : _apps.GetValueOrDefault(_front);
                 tiling = _layout is not null;
             }
-            if (front == running)
+            if (adopted)
+            {
+                // Already in front, where Steam put it.
+            }
+            else if (front == running)
                 TopLevelWindows.BringToFront(running.Window);
             else if (front is { Window: var other } && other != IntPtr.Zero)
                 TopLevelWindows.BringToFront(other);
@@ -352,12 +544,17 @@ public sealed class WindowsAppHost(LauncherWindow launcher, ILogger<WindowsAppHo
             var misses = 0;
             var polls = 0;
             var resumeDir = running.App.ResumePattern is null ? null : ProfileDir(running.App);
+            var untrustedDir = running.App.Untrusted ? ProfileDir(running.App) : null;
+            string? appPage = null;
             while (misses < MissesBeforeExit)
             {
                 await Task.Delay(PollInterval, ct);
                 misses = TopLevelWindows.IsOpen(running.Window) ? 0 : misses + 1;
                 if (misses > 0)
                     continue;
+                // An untrusted site's pop-ups and pop-unders: closed within half a second of opening.
+                if (untrustedDir is not null && EdgeDevTools.ReadPort(untrustedDir) is { } port)
+                    appPage = await EdgeDevTools.CloseOtherPagesAsync(port, appPage, ct);
                 if (running.Tiled)
                     NoticeActivation(running);
                 if (resumeDir is not null && ++polls % PollsPerPageLook == 0)

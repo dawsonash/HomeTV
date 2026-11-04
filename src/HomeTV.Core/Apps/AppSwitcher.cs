@@ -118,6 +118,34 @@ public sealed class AppSwitcher(IAppHost host, AppRegistry apps, SessionState se
             await TrimAsync(ct);
         }, ct);
 
+    /// <summary>Opens an Edge app's sign-in page (see <see cref="IAppHost.SignInAsync"/>) in front.</summary>
+    public Task SignInAsync(AppDefinition app, CancellationToken ct = default) =>
+        LockedAsync(async () =>
+        {
+            if (app.SignInUrl is null || app.Untrusted)
+                return;
+            await LeaveAsync(keep: [], ct);
+            Remove(app.Id); // The host closes it first.
+            await host.SignInAsync(app, ct);
+            Touch(app.Id);
+            _foreground = app.Id;
+            await TrimAsync(ct);
+        }, ct);
+
+    /// <summary>
+    /// An app HomeTV didn't launch appeared in front (a Steam game started from Big Picture). It joins the open apps,
+    /// so it can be switched back to, tiled and closed from the phone.
+    /// </summary>
+    public Task OnAppDiscoveredAsync(AppDefinition app) =>
+        LockedAsync(async () =>
+        {
+            apps.AddDiscovered(app);
+            await LeaveAsync(keep: [app.Id], CancellationToken.None);
+            Touch(app.Id);
+            _foreground = app.Id;
+            await TrimAsync(CancellationToken.None);
+        }, CancellationToken.None);
+
     /// <summary>An app's window went away on its own.</summary>
     public Task OnAppExitedAsync(string appId) =>
         LockedAsync(async () =>
@@ -227,11 +255,15 @@ public sealed class AppSwitcher(IAppHost host, AppRegistry apps, SessionState se
 
     private void Touch(string appId)
     {
-        Remove(appId);
+        _running.RemoveAll(id => Ids.Equals(id, appId));
         _running.Insert(0, appId);
     }
 
-    private void Remove(string appId) => _running.RemoveAll(id => Ids.Equals(id, appId));
+    private void Remove(string appId)
+    {
+        _running.RemoveAll(id => Ids.Equals(id, appId));
+        apps.RemoveDiscovered(appId); // A closed game is gone for good; tiles are unaffected.
+    }
 
     /// <summary>For platform event handlers, which nobody awaits.</summary>
     public async Task SafelyAsync(Func<Task> handler)

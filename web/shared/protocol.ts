@@ -122,6 +122,8 @@ export interface AppTile {
   id: string;
   name: string;
   color: string | null;
+  /** Settings offers "Sign in to <name>" (AppDefinition.SignInUrl). */
+  canSignIn?: boolean;
 }
 
 /** GET /api/widgets (WidgetData.cs). Missing parts aren't configured or haven't loaded yet. */
