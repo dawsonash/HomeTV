@@ -34,4 +34,10 @@
     <Content Include="..\..\config\audio.json" Link="audio.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('..\..\config\audio.json')" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="15.0.0" />
+    <!-- Runs the CLIP model that sorts background photos (ClipPhotoClassifier.cs). -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.30.0" />
+  </ItemGroup>
+
 </Project>

@@ -35,7 +35,9 @@ export type HubEvent =
   | { type: "textFocus"; field: TextField | null }
   /** Whether there's anything to scroll under the TV's pointer. */
   | { type: "scrollable"; scrollable: boolean }
-  | ({ type: "audio" } & AudioState);
+  | ({ type: "audio" } & AudioState)
+  /** A phone added or deleted a background photo: the launcher re-reads the list. */
+  | { type: "photosChanged" };
 
 /** Where sound can go (config/audio.json, AudioOutputService.cs). `current` is null for a device not listed there. */
 export interface AudioState {
@@ -98,11 +100,45 @@ export interface SystemInfo {
   supervised: boolean;
 }
 
+/** Which photos the slideshow plays (PhotoSorting.cs). */
+export type PhotoMode = "all" | "people" | "nature" | "safeForWork";
+
+export const PHOTO_MODES: { mode: PhotoMode; label: string }[] = [
+  { mode: "all", label: "All" },
+  { mode: "people", label: "People" },
+  { mode: "nature", label: "Nature" },
+  { mode: "safeForWork", label: "Safe for work" },
+];
+
 /** GET /api/photos: the launcher's background slideshow. */
 export interface PhotoList {
-  /** Where on the box to put photos. */
+  /** Where on the box photos are kept. */
   folder: string;
-  photos: { name: string; url: string }[];
+  mode: PhotoMode;
+  /** How long each photo stays up. Set with PUT /api/photos/settings, like the mode. */
+  slideSeconds: number;
+  /** The on-box image model sorting photos: how many are waiting, and any status worth showing. */
+  sorting: { pending: number; status: string | null };
+  photos: Photo[];
+}
+
+/** What the image model (or someone, by hand) says is in a photo. Null until it's been looked at; videos aren't. */
+export interface PhotoTags {
+  people: boolean;
+  nature: boolean;
+  safeForWork: boolean;
+  /** Set by hand on a phone (PUT /api/photos/{name}/tags), so the model leaves it alone. */
+  manual: boolean;
+}
+
+/** A background photo or video (PhotoLibrary.cs). Videos play muted. */
+export interface Photo {
+  name: string;
+  url: string;
+  kind: "image" | "video";
+  tags: PhotoTags | null;
+  /** In the current mode's slideshow. */
+  shown: boolean;
 }
 
 /** GET /api/devices. */

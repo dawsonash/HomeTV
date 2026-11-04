@@ -37,6 +37,10 @@ param(
     [string]$TvUser = "tv",
     [string]$ComputerName = "hometv",
     [string]$InstallDir = "C:\HomeTV",
+    # Background photos and videos (uploaded from phones). Keep in step with appsettings.Production.json.
+    [string]$PhotosDir = "D:\HomeTV\Photos",
+    # The image model that sorts photos into People/Nature/Safe for work (~600 MB, HomeTV downloads it here).
+    [string]$ModelsDir = "D:\HomeTV\Models",
     [switch]$RegisterShell,
     [switch]$UnregisterShell,
     [switch]$SkipAdBlock,
@@ -81,6 +85,8 @@ if ($RegisterShell) {
     if (-not (Test-Path $exe)) { throw "$exe not found. Deploy HomeTV first (scripts/deploy.sh)." }
     Step "Making HomeTV the shell for '$TvUser'"
     Set-TvUserShell $exe
+    # The shell starts it now; a Run entry too would start a second copy.
+    Invoke-WithTvUserHive { param($root) Remove-ItemProperty -Path "$root\Software\Microsoft\Windows\CurrentVersion\Run" -Name "HomeTV" -ErrorAction SilentlyContinue }
     Write-Host "Done. Sign out/in as $TvUser to take effect. Undo with -UnregisterShell."
     return
 }
@@ -125,6 +131,22 @@ Step "Install directory $InstallDir"
 New-Item -ItemType Directory -Force -Path (Join-Path $InstallDir "app"), (Join-Path $InstallDir "staging") | Out-Null
 # The restart task runs as the tv user and swaps staging into app, so it needs modify rights.
 icacls $InstallDir /grant "${TvUser}:(OI)(CI)M" | Out-Null
+
+Step "Background photos folder $PhotosDir"
+if (Test-Path (Split-Path -Qualifier $PhotosDir)) {
+    New-Item -ItemType Directory -Force -Path $PhotosDir | Out-Null
+    # HomeTV runs as the tv user and saves phones' uploads here.
+    icacls $PhotosDir /grant "${TvUser}:(OI)(CI)M" | Out-Null
+}
+else { Write-Warning "$(Split-Path -Qualifier $PhotosDir) doesn't exist; set HomeTV:PhotosDir to a folder that does." }
+
+Step "Photo sorting model folder $ModelsDir"
+if (Test-Path (Split-Path -Qualifier $ModelsDir)) {
+    New-Item -ItemType Directory -Force -Path $ModelsDir | Out-Null
+    # HomeTV (as the tv user) downloads the model here on first start.
+    icacls $ModelsDir /grant "${TvUser}:(OI)(CI)M" | Out-Null
+}
+else { Write-Warning "$(Split-Path -Qualifier $ModelsDir) doesn't exist; set HomeTV:ModelsDir to a folder that does." }
 
 Step "Firewall: allow HomeTV on port 8888 (private networks only)"
 if (-not (Get-NetFirewallRule -Name "HomeTV-8888" -ErrorAction SilentlyContinue)) {
@@ -244,6 +266,17 @@ if (-not $SkipRgb) {
         -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew) | Out-Null
     Write-Host "Registered HomeTV-RGB-Off. Try it now: Start-ScheduledTask HomeTV-RGB-Off; then read $InstallDir\rgb-off.log"
 }
+
+Step "Start HomeTV when '$TvUser' signs in"
+# A Run entry in the tv user's own registry: HomeTV comes up on top of the normal desktop at every boot (auto-login).
+# -RegisterShell goes further and replaces Explorer; the shell starts HomeTV itself, so the entry is removed then.
+Invoke-WithTvUserHive {
+    param($root)
+    $run = "$root\Software\Microsoft\Windows\CurrentVersion\Run"
+    New-Item -Path $run -Force | Out-Null
+    New-ItemProperty -Path $run -Name "HomeTV" -Value "`"$exe`"" -PropertyType String -Force | Out-Null
+}
+Write-Host "HomeTV starts at sign-in: $exe"
 
 Step "Restart task (lets deploys restart HomeTV inside the $TvUser desktop session)"
 $restartScript = Join-Path $InstallDir "restart-hometv.ps1"

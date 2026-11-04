@@ -27,9 +27,12 @@ var dataDir = builder.Configuration["HomeTV:DataDir"]
 var appsPath = builder.Configuration["HomeTV:AppsPath"] ?? Path.Combine(AppContext.BaseDirectory, "apps.json");
 var widgetsPath = builder.Configuration["HomeTV:WidgetsPath"] ?? Path.Combine(AppContext.BaseDirectory, "widgets.json");
 var audioPath = builder.Configuration["HomeTV:AudioPath"] ?? Path.Combine(AppContext.BaseDirectory, "audio.json");
-// Background photos: Pictures\HomeTV of whoever runs HomeTV (the tv user on the box), outside the app folder deploys replace.
+// Background photos and videos: HomeTV:PhotosDir (D:\HomeTV\Photos on the box, appsettings.Production.json), else
+// Pictures\HomeTV of whoever runs HomeTV. Outside the app folder, which deploys replace.
 var photosDir = builder.Configuration["HomeTV:PhotosDir"]
     ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "HomeTV");
+// The image model that sorts photos into People/Nature/Safe for work (~600 MB, downloaded on first start).
+var modelsDir = builder.Configuration["HomeTV:ModelsDir"] ?? Path.Combine(dataDir, "models");
 
 var urls = builder.Configuration["HomeTV:Urls"] ?? "http://0.0.0.0:8888";
 var port = BindingAddress.Parse(urls.Split(';')[0]).Port;
@@ -62,7 +65,15 @@ builder.Services
     .AddSingleton<ContinueService>()
     .AddSingleton<NowPlayingService>()
     .AddSingleton(WidgetConfig.Load(widgetsPath))
-    .AddSingleton(new PhotoLibrary(photosDir))
+    .AddSingleton(new PhotoLibrary(photosDir, new HomeTV.App.MagickHeicConverter()))
+    .AddSingleton(new PhotoTagStore(photosDir))
+    .AddSingleton(new PhotoSettingsStore(Path.Combine(dataDir, "photo-settings.json")))
+    .AddSingleton(sp => new HomeTV.App.ClipPhotoClassifier(
+        modelsDir,
+        new HttpClient { Timeout = Timeout.InfiniteTimeSpan },
+        sp.GetRequiredService<ILogger<HomeTV.App.ClipPhotoClassifier>>()))
+    .AddSingleton<HomeTV.App.PhotoTagger>()
+    .AddHostedService(sp => sp.GetRequiredService<HomeTV.App.PhotoTagger>())
     .AddSingleton(AudioConfig.Load(audioPath))
     .AddSingleton(sp => new AudioOutputService(
         sp.GetRequiredService<AudioConfig>(),

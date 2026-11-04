@@ -13,6 +13,7 @@ namespace HomeTV.Core.Session;
 [JsonDerivedType(typeof(TextFocusEvent), "textFocus")]
 [JsonDerivedType(typeof(ScrollableEvent), "scrollable")]
 [JsonDerivedType(typeof(AudioEvent), "audio")]
+[JsonDerivedType(typeof(PhotosChangedEvent), "photosChanged")]
 public abstract record HubEvent;
 
 /// <summary>Where sound can go and where it's going now (<paramref name="Current"/> is null for a device not in audio.json).</summary>
@@ -38,3 +39,6 @@ public sealed record LauncherKeyEvent(RemoteKey Key) : HubEvent;
 public sealed record PinShownEvent(string Pin, DateTimeOffset ExpiresAt) : HubEvent;
 
 public sealed record PinHiddenEvent : HubEvent;
+
+/// <summary>A background photo or video was uploaded or deleted from a phone.</summary>
+public sealed record PhotosChangedEvent : HubEvent;

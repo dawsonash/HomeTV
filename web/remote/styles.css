@@ -73,6 +73,64 @@ input:focus { outline: none; border-color: var(--accent); }
 header { display: flex; align-items: center; gap: 10px; padding: 12px 0; }
 header button.icon { background: none; color: var(--muted); }
 #now-showing { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Background photos screen (remote/main.ts) */
+header button.icon svg { width: 22px; height: 22px; }
+.photos-title { flex: 1; font-weight: 600; }
+.upload-button {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 56px; border-radius: 14px; background: var(--accent); font-weight: 600;
+}
+.upload-button:active { opacity: 0.8; }
+.uploads { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.uploads li { background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+.uploads .upload-name { display: flex; justify-content: space-between; gap: 8px; }
+.uploads .upload-name span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uploads progress { width: 100%; height: 6px; margin-top: 6px; accent-color: var(--accent); }
+.uploads li.error { color: var(--danger); }
+.uploads li.done { color: var(--ok); }
+.photos-note { color: var(--muted); font-size: 14px; margin: 12px 0; }
+.photo-grid {
+  list-style: none; margin: 0; padding: 0 0 24px;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;
+}
+.photo-grid li { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--surface); }
+.photo-grid img, .photo-grid video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-grid .video-badge {
+  position: absolute; left: 6px; bottom: 6px; padding: 1px 6px; border-radius: 6px;
+  background: rgb(0 0 0 / 0.6); font-size: 12px;
+}
+.photo-grid li { transition: opacity 200ms; }
+/* Not in the current mode's slideshow. */
+.photo-grid li.hidden-by-mode { opacity: 0.35; }
+.photo-grid .photo-tags {
+  position: absolute; right: 6px; bottom: 6px; display: flex; gap: 3px;
+}
+.photo-grid .photo-tags span {
+  padding: 1px 5px; border-radius: 6px; background: rgb(0 0 0 / 0.6); font-size: 11px; line-height: 1.5;
+}
+.photo-grid .photo-tags span.warn { background: rgb(160 30 36 / 0.85); }
+.photos-label { color: var(--muted); font-size: 13px; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+.photo-modes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.photo-modes button { min-height: 44px; padding: 0 4px; font-size: 14px; border-radius: 12px; }
+.photo-modes button[aria-checked="true"] { background: var(--accent); }
+.uploads li { transition: opacity 400ms; }
+.uploads li.leaving { opacity: 0; }
+
+/* Photo sheet: slides up over the grid. */
+.sheet { position: fixed; inset: 0; z-index: 10; display: flex; align-items: flex-end; background: rgb(0 0 0 / 0.6); }
+.sheet[hidden] { display: none; }
+.sheet-card {
+  width: 100%; max-height: 92%; overflow-y: auto; background: var(--bg); border-radius: 18px 18px 0 0;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+}
+.sheet-preview img, .sheet-preview video { width: 100%; max-height: 45vh; object-fit: contain; border-radius: 12px; display: block; background: #000; }
+.sheet-name { margin: 10px 0; font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-tags { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.tag-toggle { min-height: 48px; font-size: 15px; }
+.tag-toggle[aria-pressed="true"] { background: var(--accent); }
+.sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+button.danger { color: var(--danger); }
+
 /* Scroll strip toggle, beside Sleep: an arrow with its mode (auto / on / off) under it. */
 header button.scroll-toggle { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; width: 52px; }
 .scroll-toggle svg { width: 20px; height: 20px; }

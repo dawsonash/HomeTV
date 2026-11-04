@@ -98,14 +98,29 @@ loopback connection, loopback `Host`, same-origin `Origin`, so other web pages o
 public but undocumented API, all fetched and cached by the box (`src/HomeTV.Core/Widgets`). Scores refresh every 30s
 during a game, otherwise every 10 minutes. Leave a section out to hide that card; changes need a restart.
 
-**Background photos**: drop JPEG, PNG, WebP, GIF or AVIF files into `Pictures\HomeTV` of the user running HomeTV
-(`C:\Users\tv\Pictures\HomeTV` on the box; override with `HomeTV:PhotosDir`). They crossfade behind the launcher in
-shuffled order, 30s each, and the folder is re-read every 2 minutes, so no restart is needed. Settings shows the folder
-and how many photos it found. iPhone HEIC files won't draw in the WebView: export them as JPEG. From the Mac:
-`scp *.jpg hometv:C:/Users/tv/Pictures/HomeTV/`. There's nothing to switch on: it starts with the first photo.
+**Background photos and videos**: add them from the phone remote: the picture icon at the top opens **Background
+photos**, where **Add photos & videos** uploads straight from the camera roll (several at once, with progress; each
+"Added" clears after 5s) and tapping a photo opens it to fix its tags or delete it. They're kept in `D:\HomeTV\Photos` on the box (`HomeTV:PhotosDir`, set in `appsettings.Production.json`;
+elsewhere `Pictures\HomeTV` of the user running HomeTV), and the TV picks up changes at once. They crossfade behind the
+launcher in shuffled order: photos for 30s each (Settings → **Each photo stays up**, 5s to 10 min) with a slow Ken
+Burns pan and zoom that always starts or ends on the whole photo (a blurred copy fills the edges), videos **muted**,
+played through once (short ones loop to the slide time, long ones stop at 5 minutes), and paused while an app is in
+front. iPhone **HEIC** photos are converted to JPEG on upload
+(ImageMagick, via Magick.NET) and scaled down to fit 4K. Videos can be MP4, MOV, M4V or WebM; iPhone HEVC videos need
+Windows' HEVC Video Extension, which the box has. A file the WebView can't play is skipped. Settings shows how many
+there are. Files copied into the folder by hand show up within 2 minutes.
 
-**Ambient mode**: after 5 minutes without remote, keyboard, controller or mouse input, the tiles, pairing QR and
-settings button fade away and the widget cards lose their backgrounds, leaving the photo, clock and widgets. The first
+**Photo modes** (Settings → **Show**, or the phone's Photos screen): **All**, **People**, **Nature** or **Safe for
+work**. The box sorts photos itself with OpenAI's CLIP image model (ViT-B/32, ONNX, run with ONNX Runtime on the CPU,
+~20 ms a photo; `src/HomeTV.App/ClipPhotoClassifier.cs`), so no photo leaves the house. The model (~600 MB) is
+downloaded from Hugging Face on first start into `D:\HomeTV\Models` (`HomeTV:ModelsDir`). Tags live beside the photos
+in a hidden `.hometv-tags.json`. Videos aren't sorted, and neither are photos the model hasn't reached yet: both only
+show in All until someone tags them by hand on the phone. Hand-set tags are never overwritten. Safe for work is
+deliberately cautious (bare skin, drinking, rude gestures), so expect to un-flag a few.
+
+**Ambient mode**: after 5 minutes without remote, keyboard, controller or mouse input, or straight away from the moon
+(**Idle**) button beside Settings, the tiles, pairing QR and header buttons fade away, and the widgets glide to the
+bottom of the screen without their card backgrounds, leaving the photo, clock and widgets. The first
 press (or click) only wakes it, so it never launches anything by accident.
 
 **Continue watching**: a row under the tiles (down from the tiles), and a list on the phone's Apps tab, of the last

@@ -1,4 +1,4 @@
-import { POINTER_SPEED_MAX, POINTER_SPEED_MIN, type AppTile, type ContinueEntry, type PairedDeviceInfo, type RemoteKey, type SystemInfo } from "../shared/protocol";
+import { PHOTO_MODES, POINTER_SPEED_MAX, POINTER_SPEED_MIN, type AppTile, type ContinueEntry, type PairedDeviceInfo, type PhotoList, type PhotoMode, type RemoteKey, type SystemInfo } from "../shared/protocol";
 import { cycleAudio, renderAudio } from "./audio";
 import { fetchContinue, renderContinue } from "./continue";
 import { qrSvg } from "../shared/qr";
@@ -19,8 +19,9 @@ let focusedTile = 0;
 let continueEntries: ContinueEntry[] = [];
 let inContinueRow = false;
 let focusedCard = 0;
-/** A header button is selected instead of a tile: the audio button (top left) or settings (top right). */
-let headerFocus: "audio" | "gear" | null = null;
+/** A header button is selected instead of a tile: the audio button (top left), or idle or settings (top right). */
+type HeaderButton = "audio" | "idle" | "gear";
+let headerFocus: HeaderButton | null = null;
 let focusedSetting = 0;
 let view: "home" | "settings" = "home";
 let system: SystemInfo | null = null;
@@ -42,6 +43,8 @@ const socket = new HubSocket({
         showOpening(event.split ? null : event.foregroundApp);
         // Behind split-screen tiles: plain black, so any sliver the tiles leave reads as letterboxing.
         document.body.classList.toggle("split", !!event.split);
+        // A background video doesn't need to play behind an app.
+        slideshow.setPaused(event.foregroundApp !== null || !!event.split);
         // Back home: what was just watched is now first in the row.
         if (event.foregroundApp === null) void loadContinue();
         // Launched or closed an app (from the phone's app list, say): either way, someone's watching.
@@ -51,6 +54,9 @@ const socket = new HubSocket({
         renderAudio($("#audio-button"), event);
         // A device that disappears (Bluetooth speaker off) mustn't strand the D-pad on a hidden button.
         if (headerFocus === "audio" && !audioShown()) setHeaderFocus(null);
+        break;
+      case "photosChanged":
+        slideshow.reload();
         break;
       case "pinShown":
         showPin(event.pin, new Date(event.expiresAt));
@@ -78,13 +84,16 @@ function handleKey(key: RemoteKey): void {
 }
 
 function homeKey(key: RemoteKey): void {
-  // Up from the tiles selects the nearer header button; left/right moves between the two, down goes back.
+  // Up from the tiles selects the nearer header button; left/right moves along them, down goes back.
   if (headerFocus) {
+    const order: HeaderButton[] = audioShown() ? ["audio", "idle", "gear"] : ["idle", "gear"];
+    const at = order.indexOf(headerFocus);
     if (key === "down" || key === "back") setHeaderFocus(null);
-    else if (key === "left" && headerFocus === "gear") setHeaderFocus(audioShown() ? "audio" : null);
-    else if (key === "right" && headerFocus === "audio") setHeaderFocus("gear");
+    else if (key === "left" && at > 0) setHeaderFocus(order[at - 1]);
+    else if (key === "right" && at < order.length - 1) setHeaderFocus(order[at + 1]);
     else if (key === "ok" || key === "enter") {
       if (headerFocus === "gear") showView("settings");
+      else if (headerFocus === "idle") goAmbient(true);
       else void cycleAudio($("#audio-button"), toast);
     }
     return;
@@ -166,7 +175,7 @@ async function loadContinue(): Promise<void> {
   renderFocus();
 }
 
-function setHeaderFocus(focus: "audio" | "gear" | null): void {
+function setHeaderFocus(focus: HeaderButton | null): void {
   headerFocus = focus;
   renderFocus();
 }
@@ -265,6 +274,7 @@ function renderFocus(): void {
   document.querySelectorAll(".tile").forEach((tile, i) => tile.classList.toggle("focused", onTiles && i === focusedTile));
   document.querySelectorAll(".card").forEach((card, i) => card.classList.toggle("focused", !headerFocus && inContinueRow && i === focusedCard));
   $("#settings-button").classList.toggle("focused", headerFocus === "gear");
+  $("#idle-button").classList.toggle("focused", headerFocus === "idle");
   $("#audio-button").classList.toggle("focused", headerFocus === "audio");
 }
 
@@ -272,6 +282,8 @@ $("#settings-button").addEventListener("mouseenter", () => setHeaderFocus("gear"
 $("#audio-button").addEventListener("mouseenter", () => setHeaderFocus("audio"));
 $("#audio-button").addEventListener("click", () => void cycleAudio($("#audio-button"), toast));
 $("#settings-button").addEventListener("click", () => showView("settings"));
+$("#idle-button").addEventListener("mouseenter", () => setHeaderFocus("idle"));
+$("#idle-button").addEventListener("click", () => goAmbient(true));
 
 // In production the app's own window covers the launcher; this shows while it starts.
 function showOpening(appId: string | null): void {
@@ -289,12 +301,14 @@ function showView(next: "home" | "settings"): void {
   $("#settings").hidden = next !== "settings";
   // The corner buttons only belong on the home screen; Settings has its own back button.
   $("#settings-button").hidden = next !== "home";
+  $("#idle-button").hidden = next !== "home";
   document.body.classList.toggle("in-settings", next === "settings");
   headerFocus = null;
   renderFocus();
   if (next === "settings") {
     focusedSetting = 0;
     renderSettingFocus();
+    slideshow.reload(); // Fresh mode, timer and counts for the Background photos section.
     void loadSystem();
     void loadDevices();
   }
@@ -547,21 +561,44 @@ let idleTimer: number | undefined;
 /** Restarts the idle countdown. Returns true if the screen was ambient, i.e. this input only woke it up. */
 function wake(): boolean {
   const wasAmbient = document.body.classList.contains("ambient");
-  document.body.classList.remove("ambient");
+  if (wasAmbient) setAmbient(false);
   clearTimeout(idleTimer);
-  idleTimer = window.setTimeout(goAmbient, IDLE_MS);
+  idleTimer = window.setTimeout(() => goAmbient(false), IDLE_MS);
   return wasAmbient;
 }
 
-function goAmbient(): void {
+/** Ambient: after IDLE_MS with nothing pressed, or straight away from the Idle button (`now`). */
+function goAmbient(now: boolean): void {
   // A PIN on screen is waiting for someone, and "Opening…" means an app is starting; check again later.
-  if (!$("#pin-overlay").hidden || !$("#opening").hidden) {
-    idleTimer = window.setTimeout(goAmbient, IDLE_MS);
+  if (!now && (!$("#pin-overlay").hidden || !$("#opening").hidden)) {
+    idleTimer = window.setTimeout(() => goAmbient(false), IDLE_MS);
     return;
   }
+  clearTimeout(idleTimer);
   disarm();
   if (view === "settings") showView("home");
-  document.body.classList.add("ambient");
+  headerFocus = null;
+  renderFocus();
+  setAmbient(true);
+}
+
+/**
+ * Ambient moves the widgets from above the tiles to the bottom of the screen (styles.css). They glide there rather
+ * than jump: measure, switch, then animate from the old spot to the new one.
+ */
+function setAmbient(on: boolean): void {
+  const widgets = $("#widgets");
+  const before = widgets.hidden ? null : widgets.getBoundingClientRect();
+  document.body.classList.toggle("ambient", on);
+  if (!before) return;
+  const after = widgets.getBoundingClientRect();
+  const dx = before.left - after.left;
+  const dy = before.top - after.top;
+  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+  widgets.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0, 0)" }], {
+    duration: on ? 1600 : 400,
+    easing: "cubic-bezier(0.2, 0, 0, 1)",
+  });
 }
 
 // A click while ambient only wakes, like the first key press. Capture phase, so it never reaches a tile.
@@ -576,11 +613,79 @@ document.addEventListener(
   true,
 );
 
-function showPhotosInfo(count: number, folder: string): void {
-  $("#photos-info").textContent =
-    count === 0
-      ? `Put JPEG, PNG or WebP photos in ${folder} and they'll play behind the home screen.`
-      : `${count} photo${count === 1 ? "" : "s"} from ${folder}. Add or remove files there; changes show up within a few minutes.`;
+// ---- Background photos settings ----
+
+/** Choices for "Each photo stays up", in seconds. The default (30s) is in the middle. */
+const SLIDE_STEPS = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 300, 600];
+let photoMode: PhotoMode = "all";
+/** When the slider was last moved here, so a listing arriving mid-drag doesn't yank it back. */
+let slideTouched = 0;
+
+function modeLabel(mode: PhotoMode): string {
+  return mode === "all" ? "All photos" : (PHOTO_MODES.find((m) => m.mode === mode)?.label ?? mode);
+}
+
+function slideLabel(seconds: number): string {
+  return seconds < 60 ? `${seconds}s` : `${seconds / 60} min`;
+}
+
+async function savePhotoSettings(patch: { mode?: PhotoMode; slideSeconds?: number }): Promise<void> {
+  const response = await fetch("/api/photos/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!response.ok) toast("Couldn't save the photo settings");
+}
+
+button("photo-mode", (el) => {
+  const at = PHOTO_MODES.findIndex((m) => m.mode === photoMode);
+  photoMode = PHOTO_MODES[(at + 1) % PHOTO_MODES.length].mode;
+  el.textContent = `Show: ${modeLabel(photoMode)}`;
+  void savePhotoSettings({ mode: photoMode });
+});
+
+{
+  const slider = $<HTMLInputElement>("#slide-time");
+  let saveTimer: number | undefined;
+  slider.value = String(SLIDE_STEPS.indexOf(30));
+  $("#slide-time-value").textContent = slideLabel(30);
+  slider.addEventListener("input", () => {
+    slideTouched = Date.now();
+    const seconds = SLIDE_STEPS[Number(slider.value)];
+    $("#slide-time-value").textContent = slideLabel(seconds);
+    clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(() => void savePhotoSettings({ slideSeconds: seconds }), 300);
+  });
+}
+
+function showPhotosInfo(list: PhotoList): void {
+  photoMode = list.mode;
+  $("#photo-mode").textContent = `Show: ${modeLabel(list.mode)}`;
+  if (Date.now() - slideTouched > 2000) {
+    // Nearest step, in case it was set to something else (by hand in the settings file, say).
+    let best = 0;
+    SLIDE_STEPS.forEach((s, i) => {
+      if (Math.abs(s - list.slideSeconds) < Math.abs(SLIDE_STEPS[best] - list.slideSeconds)) best = i;
+    });
+    $<HTMLInputElement>("#slide-time").value = String(best);
+    $("#slide-time-value").textContent = slideLabel(list.slideSeconds);
+  }
+
+  const videos = list.photos.filter((p) => p.kind === "video").length;
+  const photos = list.photos.length - videos;
+  const counts = [
+    photos > 0 && `${photos} photo${photos === 1 ? "" : "s"}`,
+    videos > 0 && `${videos} video${videos === 1 ? "" : "s"} (muted)`,
+  ].filter(Boolean).join(" and ");
+  const shown = list.photos.filter((p) => p.shown).length;
+  const lines = [
+    counts ? `${counts} in ${list.folder}.` : `None yet. They're kept in ${list.folder}.`,
+    list.mode !== "all" && list.photos.length > 0 && `${shown} match ${modeLabel(list.mode)}.`,
+    list.sorting.pending > 0 && `Sorting photos: ${list.sorting.pending} to go.`,
+    list.sorting.status,
+  ];
+  $("#photos-info").textContent = lines.filter(Boolean).join(" ");
 }
 
 // ---- PIN ----
@@ -615,7 +720,7 @@ tickClock();
 setInterval(tickClock, 10_000);
 void loadSystem();
 startWidgets($("#widgets"));
-startSlideshow($("#backdrop"), (list) => showPhotosInfo(list.photos.length, list.folder));
+const slideshow = startSlideshow($("#backdrop"), (list) => showPhotosInfo(list));
 wake();
 
 fetch("/api/apps")

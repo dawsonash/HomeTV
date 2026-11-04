@@ -1,4 +1,4 @@
-import type { AppTile, RemoteKey, TextField } from "../shared/protocol";
+import { PHOTO_MODES, type AppTile, type Photo, type PhotoList, type PhotoMode, type PhotoTags, type RemoteKey, type TextField } from "../shared/protocol";
 import { HubSocket } from "../shared/socket";
 
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
@@ -44,6 +44,7 @@ function showPairing(): void {
   socket?.stop();
   socket = null;
   $("#main").hidden = true;
+  $("#photos").hidden = true;
   $("#pair").hidden = false;
   $<HTMLInputElement>("#device-name").value ||= guessDeviceName();
 }
@@ -122,6 +123,9 @@ async function showMain(): Promise<void> {
         // In auto, the strip only shows when there's something to scroll; the touchpad takes its space otherwise.
         scrollable = event.scrollable;
         renderScrollStrip();
+      } else if (event.type === "photosChanged" && !$("#photos").hidden) {
+        // Another phone uploaded, the mode changed, or the box sorted some more.
+        void loadPhotos();
       }
     },
     // A failed upgrade looks like a plain close; check whether this phone was unpaired.
@@ -302,6 +306,253 @@ $("#scroll-toggle").addEventListener("click", () => {
   renderScrollStrip();
 });
 renderScrollStrip();
+
+// ---------- Background photos ----------
+//
+// Upload photos and videos for the TV's home screen straight from the phone, one file per request (so each gets its
+// own progress bar), and delete ones you don't want. The TV picks changes up straight away.
+
+$("#photos-open").addEventListener("click", () => {
+  buzz();
+  $("#main").hidden = true;
+  $("#photos").hidden = false;
+  void loadPhotos();
+});
+
+$("#photos-close").addEventListener("click", () => {
+  $("#photos").hidden = true;
+  $("#main").hidden = false;
+});
+
+async function loadPhotos(): Promise<void> {
+  const response = await fetch("/api/photos");
+  if (!response.ok) return;
+  const list = (await response.json()) as PhotoList;
+  renderModes(list.mode);
+  const videos = list.photos.filter((p) => p.kind === "video").length;
+  const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const modeName = PHOTO_MODES.find((m) => m.mode === list.mode)?.label ?? list.mode;
+  const shown = list.photos.filter((p) => p.shown).length;
+  $("#photos-note").textContent = [
+    list.photos.length
+      ? `${count(list.photos.length - videos, "photo")}, ${count(videos, "video")} on the TV. Videos play muted.`
+      : "Nothing yet: add some and they'll play behind the TV's home screen. Videos play muted.",
+    list.mode !== "all" && list.photos.length > 0 && `${shown} shown in ${modeName}; the rest are dimmed.`,
+    list.sorting.pending > 0 && `Sorting: ${list.sorting.pending} to go.`,
+    list.sorting.status,
+    list.photos.length > 0 && "Tap a photo to fix how it's sorted, or to delete it.",
+  ].filter(Boolean).join(" ");
+  $("#photo-grid").replaceChildren(
+    ...list.photos.map((photo) => {
+      const item = document.createElement("li");
+      item.classList.toggle("hidden-by-mode", !photo.shown);
+      item.append(thumbnail(photo, true));
+      if (photo.kind === "video") {
+        const badge = document.createElement("span");
+        badge.className = "video-badge";
+        badge.textContent = "▶ video";
+        item.append(badge);
+      }
+      const chips = document.createElement("div");
+      chips.className = "photo-tags";
+      if (photo.tags?.people) chips.append(chip("People"));
+      if (photo.tags?.nature) chips.append(chip("Nature"));
+      if (photo.tags && !photo.tags.safeForWork) chips.append(chip("Not SFW", "warn"));
+      item.append(chips);
+      item.addEventListener("click", () => openSheet(photo));
+      return item;
+    }),
+  );
+}
+
+function chip(text: string, extra?: string): HTMLElement {
+  const el = document.createElement("span");
+  el.textContent = text;
+  if (extra) el.className = extra;
+  return el;
+}
+
+function thumbnail(photo: Photo, small: boolean): HTMLElement {
+  if (photo.kind === "video") {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+    video.src = `${photo.url}#t=0.5`; // A frame from half a second in, as its thumbnail.
+    if (!small) video.controls = true;
+    return video;
+  }
+  const img = document.createElement("img");
+  img.loading = "lazy";
+  img.alt = photo.name;
+  img.src = photo.url;
+  return img;
+}
+
+function renderModes(current: PhotoMode): void {
+  $("#photo-modes").replaceChildren(
+    ...PHOTO_MODES.map(({ mode, label }) => {
+      const el = document.createElement("button");
+      el.role = "radio";
+      el.textContent = label;
+      el.setAttribute("aria-checked", String(mode === current));
+      el.addEventListener("click", async () => {
+        buzz();
+        renderModes(mode);
+        const result = await fetch("/api/photos/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode }),
+        });
+        if (!result.ok) alert("Couldn't change it on the TV.");
+        void loadPhotos();
+      });
+      return el;
+    }),
+  );
+}
+
+// ---- One photo: tags and delete ----
+
+let sheetPhoto: Photo | null = null;
+const TAGS = ["people", "nature", "safeForWork"] as const;
+
+function openSheet(photo: Photo): void {
+  sheetPhoto = photo;
+  $("#sheet-preview").replaceChildren(thumbnail(photo, false));
+  $("#sheet-name").textContent = photo.name;
+  renderSheetTags(photo.tags);
+  $("#photo-sheet").hidden = false;
+}
+
+function renderSheetTags(tags: PhotoTags | null): void {
+  for (const tag of TAGS) $(`#tag-${tag}`).setAttribute("aria-pressed", String(!!tags?.[tag]));
+  $("#sheet-note").textContent =
+    sheetPhoto?.kind === "video" && !tags?.manual
+      ? "Videos aren't sorted automatically, so they only show in All until you tag them here."
+      : !tags
+        ? "Not sorted yet: it shows in All until the box has looked at it."
+        : tags.manual
+          ? "Set by hand."
+          : "Sorted by the box. Tap to correct it.";
+}
+
+for (const tag of TAGS) {
+  $(`#tag-${tag}`).addEventListener("click", async () => {
+    const photo = sheetPhoto;
+    if (!photo) return;
+    buzz();
+    const value = $(`#tag-${tag}`).getAttribute("aria-pressed") !== "true";
+    // Saving one tag by hand pins the rest as they are, so send all three.
+    const current = Object.fromEntries(TAGS.map((t) => [t, $(`#tag-${t}`).getAttribute("aria-pressed") === "true"]));
+    const body = { ...current, [tag]: value };
+    const result = await fetch(`/api/photos/${encodeURIComponent(photo.name)}/tags`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!result.ok) {
+      alert("Couldn't save that on the TV.");
+      return;
+    }
+    photo.tags = (await result.json()) as PhotoTags;
+    renderSheetTags(photo.tags);
+    void loadPhotos();
+  });
+}
+
+function closeSheet(): void {
+  $("#photo-sheet").hidden = true;
+  $("#sheet-preview").replaceChildren(); // Stops a video preview.
+  sheetPhoto = null;
+}
+
+$("#sheet-done").addEventListener("click", closeSheet);
+$("#photo-sheet").addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) closeSheet();
+});
+$("#sheet-delete").addEventListener("click", async () => {
+  const photo = sheetPhoto;
+  if (!photo || !confirm(`Delete ${photo.name} from the TV?`)) return;
+  const result = await fetch(`/api/photos/${encodeURIComponent(photo.name)}`, { method: "DELETE" });
+  if (!result.ok && result.status !== 404) {
+    alert("Couldn't delete it.");
+    return;
+  }
+  closeSheet();
+  void loadPhotos();
+});
+
+$<HTMLInputElement>("#photo-input").addEventListener("change", async (event) => {
+  const input = event.target as HTMLInputElement;
+  const files = [...(input.files ?? [])];
+  input.value = ""; // So picking the same file again still fires.
+  if (files.length === 0) return;
+  // Last time's results (including any errors) make way for this batch.
+  $("#uploads").querySelectorAll("li.done, li.error").forEach((li) => li.remove());
+  $("#uploads").hidden = false;
+  const rows = files.map((file) => {
+    const row = document.createElement("li");
+    const name = document.createElement("div");
+    name.className = "upload-name";
+    const label = document.createElement("span");
+    label.textContent = file.name;
+    const status = document.createElement("span");
+    status.textContent = "Waiting";
+    name.append(label, status);
+    const bar = document.createElement("progress");
+    bar.max = 1;
+    bar.value = 0;
+    row.append(name, bar);
+    return { file, row, status, bar };
+  });
+  $("#uploads").prepend(...rows.map((r) => r.row));
+
+  // One at a time: a phone on Wi-Fi gains nothing from parallel uploads, and the progress reads better.
+  for (const { file, row, status, bar } of rows) {
+    status.textContent = "Uploading";
+    const error = await upload(file, (fraction) => {
+      bar.value = fraction;
+      status.textContent = `${Math.round(fraction * 100)}%`;
+    });
+    bar.remove();
+    row.classList.add(error ? "error" : "done");
+    status.textContent = error ?? "Added";
+    // "Added" goes away by itself after a few seconds; errors stay until the next upload.
+    if (!error) window.setTimeout(() => dismissUpload(row), 5000);
+  }
+  void loadPhotos();
+});
+
+function dismissUpload(row: HTMLElement): void {
+  row.classList.add("leaving");
+  window.setTimeout(() => {
+    row.remove();
+    if ($("#uploads").childElementCount === 0) $("#uploads").hidden = true;
+  }, 400);
+}
+
+/** Sends one file; resolves with an error message, or null once the TV has it. */
+function upload(file: File, onProgress: (fraction: number) => void): Promise<string | null> {
+  return new Promise((resolve) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", `/api/photos?name=${encodeURIComponent(file.name)}`);
+    request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    request.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) onProgress(e.loaded / e.total);
+    });
+    request.addEventListener("load", () => {
+      if (request.status >= 200 && request.status < 300) return resolve(null);
+      try {
+        resolve((JSON.parse(request.responseText) as { error?: string }).error ?? `Failed (${request.status})`);
+      } catch {
+        resolve(request.status === 401 ? "This phone isn't paired" : `Failed (${request.status})`);
+      }
+    });
+    request.addEventListener("error", () => resolve("Couldn't reach the TV"));
+    request.send(file);
+  });
+}
 
 $("#sleep").addEventListener("click", () => {
   if (confirm("Put the TV box to sleep?")) socket?.send({ type: "sleep" });
