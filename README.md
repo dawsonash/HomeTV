@@ -4,7 +4,9 @@ An ad-free TV home screen for an old gaming PC, with a phone remote at `http://h
 
 - **Launcher**: full-screen tiles, four to a row (Prime Video, Disney+, Hulu, Fubo, YouTube, Steam, Spotify) that replace the Windows shell,
   with weather and sports widgets above them.
-- **Remote**: phone web app with a D-pad, touchpad, keyboard and app list. Phones pair with a PIN shown on the TV.
+- **Remote**: phone web app with a touchpad, keyboard and app list. The TV home screen is pointer-first: nothing
+  shows as selected except what's under the pointer; arrow keys or OK on a keyboard or controller bring the
+  selection ring back until the pointer moves. Phones pair with a PIN shown on the TV.
 - **Server**: .NET 10 + WebSockets. It injects input with Win32 `SendInput`, launches Edge app windows and Steam Big Picture, and puts the PC to sleep.
 
 ## Layout

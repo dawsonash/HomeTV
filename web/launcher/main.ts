@@ -76,7 +76,27 @@ const socket = new HubSocket({
 
 // ---- Input ----
 
+/**
+ * Pointer first: the phone's touchpad drives the TV, so nothing shows as selected except what's under the pointer.
+ * Arrow keys or OK (a keyboard or controller on the box) bring the selection ring back until the pointer moves.
+ */
+let usingKeys = false;
+const NAV_KEYS: ReadonlySet<RemoteKey> = new Set<RemoteKey>(["up", "down", "left", "right", "ok", "enter"]);
+
+/** Without keys, drops the ring from anything the pointer isn't on. Runs after each focus render. */
+function trimFocusToPointer(): void {
+  if (usingKeys) return;
+  document.querySelectorAll(".focused, .remove-focused").forEach((el) => {
+    if (!el.matches(":hover")) el.classList.remove("focused", "remove-focused");
+  });
+}
+
 function handleKey(key: RemoteKey): void {
+  if (NAV_KEYS.has(key) && !usingKeys) {
+    usingKeys = true;
+    if (view === "settings") renderSettingFocus();
+    else renderFocus();
+  }
   // The first press only brings the tiles back, so a stray OK doesn't launch whatever happens to be selected.
   if (wake()) return;
   if (!$("#pin-overlay").hidden) {
@@ -325,6 +345,7 @@ function renderFocus(): void {
   $("#settings-button").classList.toggle("focused", headerFocus === "gear");
   $("#idle-button").classList.toggle("focused", headerFocus === "idle");
   $("#audio-button").classList.toggle("focused", headerFocus === "audio");
+  trimFocusToPointer();
 }
 
 $("#settings-button").addEventListener("mouseenter", () => setHeaderFocus("gear"));
@@ -387,9 +408,18 @@ document.addEventListener("mousemove", (event) => {
   if (at === lastPointer) return;
   lastPointer = at;
   wake();
+  if (usingKeys) {
+    usingKeys = false;
+    trimFocusToPointer();
+  }
   document.body.classList.add("pointer");
   clearTimeout(pointerTimer);
   pointerTimer = window.setTimeout(() => document.body.classList.remove("pointer"), 3000);
+});
+
+// Leaving something takes its ring with it (entering one already selects it, via its mouseenter).
+document.addEventListener("mouseout", () => {
+  if (!usingKeys) requestAnimationFrame(trimFocusToPointer);
 });
 
 function focusables(): HTMLElement[] {
@@ -414,7 +444,8 @@ function renderSettingFocus(): void {
   const items = focusables();
   focusedSetting = Math.min(focusedSetting, Math.max(0, items.length - 1));
   items.forEach((item, i) => item.classList.toggle("focused", i === focusedSetting));
-  items[focusedSetting]?.scrollIntoView({ block: "nearest" });
+  if (usingKeys) items[focusedSetting]?.scrollIntoView({ block: "nearest" });
+  trimFocusToPointer();
 }
 
 /** Runs `action` on the second OK within a few seconds; the first press only arms the button. */
