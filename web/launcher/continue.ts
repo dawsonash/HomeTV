@@ -1,7 +1,7 @@
 import type { AppTile, ContinueEntry } from "../shared/protocol";
 
-/** Cards that fit in the top-right card, two by two; the server keeps a few more. */
-export const MAX_CARDS = 4;
+/** The two most recent, stacked in the top-right card; the server keeps a few more. */
+export const MAX_CARDS = 2;
 
 export async function fetchContinue(): Promise<ContinueEntry[]> {
   try {

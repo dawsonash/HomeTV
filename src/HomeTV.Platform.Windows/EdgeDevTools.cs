@@ -355,6 +355,23 @@ internal static class EdgeDevTools
         }
     }
 
+    /// <summary>Every target in the profile as "type url", for troubleshooting. Null if Edge isn't answering.</summary>
+    public static async Task<IReadOnlyList<string>?> PageUrlsAsync(int port, CancellationToken ct)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(Timeout);
+        try
+        {
+            var targets = await Http.GetFromJsonAsync<List<Target>>($"http://127.0.0.1:{port}/json/list", cts.Token);
+            return targets?.Where(t => !t.Url.StartsWith("chrome-extension:", StringComparison.OrdinalIgnoreCase))
+                .Select(t => $"{t.Type} {(t.Url.Length > 120 ? t.Url[..120] : t.Url)}").ToList();
+        }
+        catch (Exception ex) when (IsEdgeGone(ex, ct))
+        {
+            return null;
+        }
+    }
+
     /// <summary>The profile belongs to one app, so its page is the one page there (most recently used first).</summary>
     private static async Task<Target?> FindPageAsync(int port, CancellationToken ct)
     {

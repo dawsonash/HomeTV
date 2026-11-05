@@ -145,10 +145,10 @@ function homeKey(key: RemoteKey): void {
         focusedTile -= TILES_PER_ROW;
         renderFocus();
       } else if (continueEntries.length > 0) {
-        // Continue watching sits above the tiles, top right: start on its bottom row.
+        // Continue watching sits above the tiles, top right: start on its bottom card.
         inContinueRow = true;
         onRemoveButton = false;
-        focusedCard = Math.min(continueEntries.length - 1, 2 + (focusedTile % TILES_PER_ROW >= TILES_PER_ROW / 2 ? 1 : 0));
+        focusedCard = continueEntries.length - 1;
         renderFocus();
       } else {
         setHeaderFocus(audioShown() && focusedTile % TILES_PER_ROW < TILES_PER_ROW / 2 ? "audio" : "gear");
@@ -169,10 +169,10 @@ function continueKey(key: RemoteKey): void {
       renderFocus();
       break;
     case "up":
-      // Card → its ✕ → the card above (two by two) → the header.
+      // Card → its ✕ → the card above (one column) → the header.
       if (!onRemoveButton) onRemoveButton = true;
-      else if (focusedCard >= 2) {
-        focusedCard -= 2;
+      else if (focusedCard >= 1) {
+        focusedCard -= 1;
         onRemoveButton = false;
       } else {
         onRemoveButton = false;
@@ -184,7 +184,7 @@ function continueKey(key: RemoteKey): void {
     case "down":
       // ✕ → its card → the card below → the tiles.
       if (onRemoveButton) onRemoveButton = false;
-      else if (focusedCard + 2 < continueEntries.length) focusedCard += 2;
+      else if (focusedCard + 1 < continueEntries.length) focusedCard += 1;
       else inContinueRow = false;
       renderFocus();
       break;

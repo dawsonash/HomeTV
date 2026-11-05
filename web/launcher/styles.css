@@ -425,14 +425,15 @@ body.ambient .scrim { background: rgb(8 9 12 / 0.2); }
 /* ---- Continue watching (continue.ts) ----
    A card at the right end of the widget row, above the tiles. */
 /* Only as wide as its cards, so the widgets get the rest of the row. */
-.continue { flex: 0 0 auto; transition: opacity var(--ambient-fade) ease-out; }
+.continue { flex: 0 0 auto; width: min-content; transition: opacity var(--ambient-fade) ease-out; }
+/* The heading wraps rather than widening the card past its videos. */
 .continue[hidden] { display: none; }
-.continue h2 { margin: 0; font-size: 1.1vw; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-/* Two by two (MAX_CARDS in continue.ts). */
+.continue h2 { margin: 0; font-size: 1vw; line-height: 1.2; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+/* One column, the two most recent (MAX_CARDS in continue.ts). */
 .continue-row {
   display: grid;
-  grid-template-columns: repeat(2, 10vw);
-  gap: 1.4vh 1.2vw;
+  grid-template-columns: 10vw;
+  gap: 1vh;
 }
 .continue .card-title { -webkit-line-clamp: 1; font-size: 0.95vw; margin-top: 0.6vh; }
 .card { opacity: 0.75; transition: transform 120ms ease-out, opacity 120ms ease-out; }

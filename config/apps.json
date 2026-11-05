@@ -33,8 +33,9 @@
     "id": "fubo",
     "name": "Fubo",
     "kind": "edge",
-    "target": "https://www.fubo.tv/welcome",
+    "target": "https://www.fubo.tv/p/home",
     "edgeProfile": "fubo",
+    "resumePattern": "^https://www\\.fubo\\.tv/p/watch",
     "hdr": false,
     "color": "#fa4616"
   },
