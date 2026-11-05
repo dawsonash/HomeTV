@@ -26,13 +26,16 @@
   </header>
 
   <main id="home">
-    <div id="widgets" class="widgets" hidden></div>
+    <!-- Widgets on the left, Continue watching (when there's any) as a card on the right. -->
+    <div class="top-row">
+      <div id="widgets" class="widgets" hidden></div>
+      <!-- Continue watching (continue.ts): pages HomeTV saw a video playing on. -->
+      <section id="continue" class="continue widget" hidden>
+        <h2>Continue watching</h2>
+        <div id="continue-row" class="continue-row" role="list"></div>
+      </section>
+    </div>
     <div id="tiles" class="tiles" role="list"></div>
-    <!-- Continue watching (continue.ts): pages HomeTV saw a video playing on. Down from the tiles. -->
-    <section id="continue" class="continue" hidden>
-      <h2>Continue watching</h2>
-      <div id="continue-row" class="continue-row" role="list"></div>
-    </section>
     <div class="hint">
       <div class="qr-slot" data-qr="remote" aria-label="QR code for the phone remote"></div>
     </div>

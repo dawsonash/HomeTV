@@ -132,12 +132,6 @@ function homeKey(key: RemoteKey): void {
         // The tile below, or the last tile when the row below is shorter.
         focusedTile = Math.min(apps.length - 1, focusedTile + TILES_PER_ROW);
         renderFocus();
-      } else if (continueEntries.length > 0) {
-        inContinueRow = true;
-        onRemoveButton = false;
-        // Start from the card under the selected tile, roughly.
-        focusedCard = Math.min(focusedTile % TILES_PER_ROW, continueEntries.length - 1);
-        renderFocus();
       }
       break;
     case "left":
@@ -149,6 +143,12 @@ function homeKey(key: RemoteKey): void {
     case "up":
       if (tileRow(focusedTile) > 0) {
         focusedTile -= TILES_PER_ROW;
+        renderFocus();
+      } else if (continueEntries.length > 0) {
+        // Continue watching sits above the tiles, top right: start on its bottom row.
+        inContinueRow = true;
+        onRemoveButton = false;
+        focusedCard = Math.min(continueEntries.length - 1, 2 + (focusedTile % TILES_PER_ROW >= TILES_PER_ROW / 2 ? 1 : 0));
         renderFocus();
       } else {
         setHeaderFocus(audioShown() && focusedTile % TILES_PER_ROW < TILES_PER_ROW / 2 ? "audio" : "gear");
@@ -169,13 +169,23 @@ function continueKey(key: RemoteKey): void {
       renderFocus();
       break;
     case "up":
-      // Card → its ✕ → the tiles, matching where the ✕ sits.
-      if (onRemoveButton) inContinueRow = false;
-      onRemoveButton = !onRemoveButton && inContinueRow;
+      // Card → its ✕ → the card above (two by two) → the header.
+      if (!onRemoveButton) onRemoveButton = true;
+      else if (focusedCard >= 2) {
+        focusedCard -= 2;
+        onRemoveButton = false;
+      } else {
+        onRemoveButton = false;
+        inContinueRow = false;
+        headerFocus = "gear";
+      }
       renderFocus();
       break;
     case "down":
-      onRemoveButton = false;
+      // ✕ → its card → the card below → the tiles.
+      if (onRemoveButton) onRemoveButton = false;
+      else if (focusedCard + 2 < continueEntries.length) focusedCard += 2;
+      else inContinueRow = false;
       renderFocus();
       break;
     case "back":

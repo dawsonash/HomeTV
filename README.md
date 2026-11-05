@@ -2,7 +2,7 @@
 
 An ad-free TV home screen for an old gaming PC, with a phone remote at `http://hometv.local:8888`.
 
-- **Launcher**: full-screen tiles, four to a row (Prime Video, Disney+, Hulu, Fubo, YouTube, Steam, Spotify) that replace the Windows shell,
+- **Launcher**: full-screen tiles, four to a row across the whole screen (Prime Video, Disney+, Hulu, Fubo, YouTube, Steam, Spotify) that replace the Windows shell,
   with weather and sports widgets above them.
 - **Remote**: phone web app with a touchpad, keyboard and app list. The TV home screen is pointer-first: nothing
   shows as selected except what's under the pointer; arrow keys or OK on a keyboard or controller bring the
@@ -125,7 +125,7 @@ deliberately cautious (bare skin, drinking, rude gestures), so expect to un-flag
 bottom of the screen without their card backgrounds, leaving the photo, clock and widgets. The first
 press (or click) only wakes it, so it never launches anything by accident.
 
-**Continue watching**: a row under the tiles (down from the tiles), and a list on the phone's Apps tab, of the last
+**Continue watching**: a card at the right end of the widget row, above the tiles (up to 4 shows, two by two), of the last
 videos you played in YouTube, Prime Video, Disney+ and Hulu. Opening one goes straight back to that page; YouTube also starts at
 where you stopped. If the app is still open, its tab is reused: it's just brought back when it's already on
 that video, otherwise the tab goes to the video, so the same video never plays twice. While an Edge app with a `resumePattern` in `config/apps.json` is open, HomeTV reads its page's

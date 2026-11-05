@@ -111,9 +111,9 @@ main {
 
 .tiles {
   display: grid;
-  /* Four to a row (TILES_PER_ROW in main.ts); more tiles start another row. */
-  grid-template-columns: repeat(4, minmax(0, 13vw));
-  gap: 2.2vh 1.8vw;
+  /* Four to a row across the whole width (TILES_PER_ROW in main.ts); more tiles start another row. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2.4vh 1.8vw;
 }
 
 .tile {
@@ -121,8 +121,8 @@ main {
   border-radius: 1.2vw;
   display: flex;
   align-items: flex-end;
-  padding: 1.1vw 1.2vw;
-  font-size: 1.7vw;
+  padding: 1.3vw 1.6vw;
+  font-size: 2vw;
   font-weight: 700;
   background: var(--tile-color, #2a2d38);
   box-shadow: 0 0 0 0 var(--focus);
@@ -137,9 +137,8 @@ main {
 
 .hint { margin-top: 8vh; display: flex; align-items: center; gap: 1.6vw; color: var(--muted); font-size: 1.3vw; line-height: 1.5; }
 .hint .qr-slot { width: 9vw; }
-/* With widgets above the tiles there's less room, so the pairing hint gets smaller. */
-.widgets:not([hidden]) ~ .hint { margin-top: 4vh; }
-.widgets:not([hidden]) ~ .hint .qr-slot { width: 6.5vw; }
+/* With the widget row above the full-width tiles there's no room left for it (the QR is in Settings too). */
+.top-row:not(:has(> .widgets[hidden]):has(> .continue[hidden])) ~ .hint { display: none; }
 
 /* QR codes are drawn by shared/qr.ts with their own white quiet zone. */
 .qr-slot:empty { display: none; }
@@ -178,7 +177,10 @@ main {
 .badge[hidden] { display: none; }
 
 /* ---- Home widgets (widgets.ts) ---- */
-.widgets { display: flex; gap: 2vw; margin-bottom: 3vh; }
+/* Widgets left, Continue watching right; the row is as tall as its tallest card. */
+.top-row { display: flex; gap: 2vw; align-items: stretch; margin-bottom: 3.5vh; }
+.top-row:has(> .widgets[hidden]):has(> .continue[hidden]) { display: none; }
+.widgets { display: flex; gap: 2vw; }
 .widgets[hidden] { display: none; }
 .widget {
   display: flex;
@@ -420,18 +422,17 @@ body.ambient #clock { text-shadow: 0 0.1vw 0.8vw rgb(0 0 0 / 0.7), 0 0 0.2vw rgb
 body.ambient .scrim { background: rgb(8 9 12 / 0.2); }
 
 /* ---- Continue watching (continue.ts) ----
-   Below the app tiles; down from the tiles moves into it. It takes the pairing hint's place (the QR is in Settings too). */
-.continue { margin-top: 5vh; transition: opacity var(--ambient-fade) ease-out; }
+   A card at the right end of the widget row, above the tiles. */
+.continue { flex: 1 1 0; min-width: 0; margin-left: auto; transition: opacity var(--ambient-fade) ease-out; }
 .continue[hidden] { display: none; }
-.continue:not([hidden]) ~ .hint { display: none; }
-.widgets:not([hidden]) ~ .continue { margin-top: 2.5vh; }
-.continue h2 { margin: 0 0 1.6vh; font-size: 1.3vw; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.continue h2 { margin: 0; font-size: 1.1vw; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+/* Two by two (MAX_CARDS in continue.ts). */
 .continue-row {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 11vw);
-  gap: 1.6vw;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.4vh 1.2vw;
 }
+.continue .card-title { -webkit-line-clamp: 1; font-size: 0.95vw; margin-top: 0.6vh; }
 .card { opacity: 0.75; transition: transform 120ms ease-out, opacity 120ms ease-out; }
 .card.focused { opacity: 1; transform: scale(1.06); }
 .card-art {

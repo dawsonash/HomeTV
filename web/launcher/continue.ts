@@ -1,7 +1,7 @@
 import type { AppTile, ContinueEntry } from "../shared/protocol";
 
-/** Cards that fit across the TV at their size; the server keeps a few more. */
-export const MAX_CARDS = 6;
+/** Cards that fit in the top-right card, two by two; the server keeps a few more. */
+export const MAX_CARDS = 4;
 
 export async function fetchContinue(): Promise<ContinueEntry[]> {
   try {
