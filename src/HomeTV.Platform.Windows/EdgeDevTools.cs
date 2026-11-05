@@ -153,6 +153,26 @@ internal static class EdgeDevTools
 
     public static Task PauseAsync(int port, CancellationToken ct) => EvaluateAsync(port, PauseScript, ct);
 
+    /// <summary>Loads <paramref name="url"/> in the profile's page (same tab). False if Edge isn't answering.</summary>
+    public static async Task<bool> NavigateAsync(int port, string url, CancellationToken ct)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(Timeout);
+        try
+        {
+            if (await FindPageAsync(port, cts.Token) is not { WebSocketDebuggerUrl: { } socketUrl })
+                return false;
+            await using var page = await Cdp.ConnectAsync(socketUrl, cts.Token);
+            var result = await page.CallAsync("Page.navigate", new { url }, cts.Token);
+            // A navigation that fails outright (bad address, offline) comes back with errorText.
+            return !(result.ValueKind == JsonValueKind.Object && result.TryGetProperty("errorText", out _));
+        }
+        catch (Exception ex) when (IsEdgeGone(ex, ct))
+        {
+            return false;
+        }
+    }
+
     /// <summary>Tiles the page (see <see cref="TileScript"/>), or with <paramref name="muted"/> null, untiles it.</summary>
     /// <param name="fit">Fill the tile with the video; null keeps what it was (a new tile starts fitted).</param>
     public static Task SetTileAsync(int port, bool? muted, bool? fit, CancellationToken ct)

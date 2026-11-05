@@ -609,6 +609,21 @@ public sealed class WindowsAppHost : IAppHost, IDisposable
         }
     }
 
+    public async Task<string?> CurrentUrlAsync(string appId, CancellationToken ct = default)
+    {
+        if (Get(appId) is not { } running || DevToolsPort(running.App) is not { } port)
+            return null;
+        return (await EdgeDevTools.SnapshotAsync(port, ct))?.Url;
+    }
+
+    public async Task<bool> NavigateAsync(string appId, string url, CancellationToken ct = default)
+    {
+        if (Get(appId) is not { } running || DevToolsPort(running.App) is not { } port)
+            return false;
+        logger.LogInformation("{App}: opening {Url} in its open tab", running.App.Name, url);
+        return await EdgeDevTools.NavigateAsync(port, url, ct);
+    }
+
     private RunningApp? Get(string appId)
     {
         lock (_lock)

@@ -15,6 +15,8 @@ const IDLE_MS = 5 * 60_000;
 
 let apps: AppTile[] = [];
 let focusedTile = 0;
+/** Tiles per row on the home screen; keep in step with `.tiles` in styles.css. */
+const TILES_PER_ROW = 4;
 /** "Continue watching" cards, and whether the D-pad is in that row (below the tiles) rather than on the tiles. */
 let continueEntries: ContinueEntry[] = [];
 let inContinueRow = false;
@@ -106,11 +108,15 @@ function homeKey(key: RemoteKey): void {
   }
   switch (key) {
     case "down":
-      if (continueEntries.length > 0) {
+      if (tileRow(focusedTile) < tileRow(apps.length - 1)) {
+        // The tile below, or the last tile when the row below is shorter.
+        focusedTile = Math.min(apps.length - 1, focusedTile + TILES_PER_ROW);
+        renderFocus();
+      } else if (continueEntries.length > 0) {
         inContinueRow = true;
         onRemoveButton = false;
         // Start from the card under the selected tile, roughly.
-        focusedCard = Math.min(focusedTile, continueEntries.length - 1);
+        focusedCard = Math.min(focusedTile % TILES_PER_ROW, continueEntries.length - 1);
         renderFocus();
       }
       break;
@@ -121,7 +127,12 @@ function homeKey(key: RemoteKey): void {
       moveTile(1);
       break;
     case "up":
-      setHeaderFocus(audioShown() && focusedTile < apps.length / 2 ? "audio" : "gear");
+      if (tileRow(focusedTile) > 0) {
+        focusedTile -= TILES_PER_ROW;
+        renderFocus();
+      } else {
+        setHeaderFocus(audioShown() && focusedTile % TILES_PER_ROW < TILES_PER_ROW / 2 ? "audio" : "gear");
+      }
       break;
     case "ok":
     case "enter":
@@ -259,6 +270,10 @@ document.addEventListener("keydown", (event) => {
 });
 
 // ---- Home ----
+
+function tileRow(index: number): number {
+  return Math.floor(index / TILES_PER_ROW);
+}
 
 function moveTile(by: number): void {
   focusedTile = Math.max(0, Math.min(apps.length - 1, focusedTile + by));

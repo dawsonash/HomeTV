@@ -31,14 +31,19 @@ public sealed class AppSwitcher(IAppHost host, AppRegistry apps, SessionState se
     private List<string>? _split;
 
     /// <summary>Puts <paramref name="app"/> in front, starting it if it isn't open. In split screen, a tile's app just gets focus.</summary>
-    /// <param name="url">Open this page (a "Continue watching" entry): restarts the app if it's already open.</param>
-    public Task LaunchAsync(AppDefinition app, string? url = null, CancellationToken ct = default) =>
+    /// <param name="url">
+    /// Open this page (a "Continue watching" entry). If the app is already open, its tab goes to the page, or is just
+    /// brought back when <paramref name="isSamePage"/> says it's already there; only if its page can't be reached is
+    /// the app restarted at the page.
+    /// </param>
+    /// <param name="isSamePage">Whether the address an open app is showing is already <paramref name="url"/>'s video.</param>
+    public Task LaunchAsync(AppDefinition app, string? url = null, CancellationToken ct = default, Func<string, bool>? isSamePage = null) =>
         LockedAsync(async () =>
         {
             if (url is null && _split is not null && _split.Contains(app.Id, Ids))
                 await FocusTileCoreAsync(app.Id, ct);
             else
-                await ShowFullCoreAsync(app, url, ct);
+                await ShowFullCoreAsync(app, url, isSamePage, ct);
         }, ct);
 
     /// <summary>Back to the launcher; open apps stay open behind it.</summary>
@@ -77,7 +82,7 @@ public sealed class AppSwitcher(IAppHost host, AppRegistry apps, SessionState se
             {
                 var full = tiles.FirstOrDefault() ?? (_foreground is { } id ? apps.Find(id) : null);
                 if (full is not null)
-                    await ShowFullCoreAsync(full, null, ct);
+                    await ShowFullCoreAsync(full, null, null, ct);
                 return;
             }
 
@@ -99,7 +104,7 @@ public sealed class AppSwitcher(IAppHost host, AppRegistry apps, SessionState se
             if (ids.Count < MinTiles)
             {
                 if (ids.Count == 1)
-                    await ShowFullCoreAsync(apps.Find(ids[0])!, null, ct);
+                    await ShowFullCoreAsync(apps.Find(ids[0])!, null, null, ct);
                 else
                 {
                     _foreground = null;
@@ -162,16 +167,25 @@ public sealed class AppSwitcher(IAppHost host, AppRegistry apps, SessionState se
                 await FocusTileCoreAsync(_split.First(id => Ids.Equals(id, appId)), CancellationToken.None);
         }, CancellationToken.None);
 
-    private async Task ShowFullCoreAsync(AppDefinition app, string? url, CancellationToken ct)
+    private async Task ShowFullCoreAsync(AppDefinition app, string? url, Func<string, bool>? isSamePage, CancellationToken ct)
     {
         await LeaveAsync(keep: [app.Id], ct);
 
         var running = Find(app.Id) is not null;
         if (running && url is not null)
         {
-            await host.CloseAsync(app.Id, ct);
-            Remove(app.Id);
-            running = false;
+            // Reuse the open tab: relaunching an open Edge profile hands the page to the running browser as a second
+            // tab, and then the same video plays twice.
+            if (await host.CurrentUrlAsync(app.Id, ct) is { } current && isSamePage?.Invoke(current) == true)
+                url = null; // Already on it (paused when we went Home): just bring it back.
+            else if (await host.NavigateAsync(app.Id, url, ct))
+                url = null;
+            else
+            {
+                await host.CloseAsync(app.Id, ct);
+                Remove(app.Id);
+                running = false;
+            }
         }
         if (running && !await host.ShowAsync(app.Id, ct))
         {

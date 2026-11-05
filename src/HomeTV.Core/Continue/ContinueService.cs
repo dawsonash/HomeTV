@@ -161,6 +161,15 @@ public sealed class ContinueService
         }
     }
 
+    /// <summary>Whether <paramref name="url"/> is <paramref name="entry"/>'s video, wherever it's paused.</summary>
+    public bool IsSamePage(ContinueEntry entry, string url)
+    {
+        if (!IsWebUrl(url) || url.Length > MaxUrlLength)
+            return false;
+        var timeParam = _apps.Find(entry.AppId)?.ResumeTimeParam;
+        return string.Equals(Normalize(url, timeParam), entry.Url, StringComparison.Ordinal);
+    }
+
     /// <summary>The address to open: the saved page, starting at the saved time if the app supports that.</summary>
     public string ResumeUrl(ContinueEntry entry)
     {

@@ -106,15 +106,14 @@ main {
   /* "safe": when widgets, tiles and Continue watching don't all fit, keep the top in place (clear of the speaker
      button) rather than centering them up under the header. */
   justify-content: safe center;
-  padding: 3vh 5vw 4vh;
+  padding: 3vh 5vw 2.5vh;
 }
 
 .tiles {
   display: grid;
-  grid-auto-flow: column;
-  /* Up to 20vw each, shrinking so every tile fits across the screen (five don't at full width). */
-  grid-auto-columns: minmax(0, 20vw);
-  gap: 2vw;
+  /* Four to a row (TILES_PER_ROW in main.ts); more tiles start another row. */
+  grid-template-columns: repeat(4, minmax(0, 13vw));
+  gap: 2.2vh 1.8vw;
 }
 
 .tile {
@@ -122,8 +121,8 @@ main {
   border-radius: 1.2vw;
   display: flex;
   align-items: flex-end;
-  padding: 1.4vw;
-  font-size: 2vw;
+  padding: 1.1vw 1.2vw;
+  font-size: 1.7vw;
   font-weight: 700;
   background: var(--tile-color, #2a2d38);
   box-shadow: 0 0 0 0 var(--focus);
@@ -179,7 +178,7 @@ main {
 .badge[hidden] { display: none; }
 
 /* ---- Home widgets (widgets.ts) ---- */
-.widgets { display: flex; gap: 2vw; margin-bottom: 4vh; }
+.widgets { display: flex; gap: 2vw; margin-bottom: 3vh; }
 .widgets[hidden] { display: none; }
 .widget {
   display: flex;
@@ -425,12 +424,12 @@ body.ambient .scrim { background: rgb(8 9 12 / 0.2); }
 .continue { margin-top: 5vh; transition: opacity var(--ambient-fade) ease-out; }
 .continue[hidden] { display: none; }
 .continue:not([hidden]) ~ .hint { display: none; }
-.widgets:not([hidden]) ~ .continue { margin-top: 3.5vh; }
+.widgets:not([hidden]) ~ .continue { margin-top: 2.5vh; }
 .continue h2 { margin: 0 0 1.6vh; font-size: 1.3vw; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .continue-row {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 13vw);
+  grid-auto-columns: minmax(0, 11vw);
   gap: 1.6vw;
 }
 .card { opacity: 0.75; transition: transform 120ms ease-out, opacity 120ms ease-out; }

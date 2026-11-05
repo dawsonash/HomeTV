@@ -63,15 +63,43 @@ public class AppSwitcherTests
     }
 
     [Fact]
-    public async Task Opening_a_page_restarts_an_app_that_is_already_open()
+    public async Task Opening_the_page_an_open_app_is_already_on_just_brings_it_back()
     {
         await _switcher.LaunchAsync(App("youtube"));
+        _host.Pages["youtube"] = "https://www.youtube.com/watch?v=abc&t=42s";
+        await _switcher.HomeAsync();
+        _host.Calls.Clear();
+
+        await _switcher.LaunchAsync(App("youtube"), "https://www.youtube.com/watch?v=abc&t=120s",
+            isSamePage: url => url.StartsWith("https://www.youtube.com/watch?v=abc", StringComparison.Ordinal));
+
+        Assert.Equal(["show youtube"], _host.Calls);
+    }
+
+    [Fact]
+    public async Task Opening_another_page_in_an_open_app_uses_its_tab()
+    {
+        await _switcher.LaunchAsync(App("youtube"));
+        _host.Pages["youtube"] = "https://www.youtube.com/watch?v=other";
+        await _switcher.HomeAsync();
+        _host.Calls.Clear();
+
+        await _switcher.LaunchAsync(App("youtube"), "https://www.youtube.com/watch?v=abc", isSamePage: _ => false);
+
+        Assert.Equal(["navigate youtube https://www.youtube.com/watch?v=abc", "show youtube"], _host.Calls);
+    }
+
+    [Fact]
+    public async Task Opening_a_page_restarts_an_open_app_whose_page_is_out_of_reach()
+    {
+        await _switcher.LaunchAsync(App("youtube"));
+        _host.Unreachable.Add("youtube");
         await _switcher.HomeAsync();
         _host.Calls.Clear();
 
         await _switcher.LaunchAsync(App("youtube"), "https://www.youtube.com/watch?v=abc");
 
-        Assert.Equal(["close youtube", "launch youtube https://www.youtube.com/watch?v=abc"], _host.Calls);
+        Assert.Equal(["navigate youtube https://www.youtube.com/watch?v=abc", "close youtube", "launch youtube https://www.youtube.com/watch?v=abc"], _host.Calls);
     }
 
     [Fact]

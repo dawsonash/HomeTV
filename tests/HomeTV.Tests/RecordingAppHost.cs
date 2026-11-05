@@ -52,6 +52,24 @@ internal sealed class RecordingAppHost(List<string>? calls = null) : IAppHost
         return Task.CompletedTask;
     }
 
+    /// <summary>The page each open app is showing, for <see cref="CurrentUrlAsync"/>.</summary>
+    public Dictionary<string, string> Pages { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Apps whose page can't be reached, so <see cref="NavigateAsync"/> fails.</summary>
+    public HashSet<string> Unreachable { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Task<string?> CurrentUrlAsync(string appId, CancellationToken ct = default) =>
+        Task.FromResult(Open.Contains(appId) && !Unreachable.Contains(appId) ? Pages.GetValueOrDefault(appId) : null);
+
+    public Task<bool> NavigateAsync(string appId, string url, CancellationToken ct = default)
+    {
+        Calls.Add($"navigate {appId} {url}");
+        if (!Open.Contains(appId) || Unreachable.Contains(appId))
+            return Task.FromResult(false);
+        Pages[appId] = url;
+        return Task.FromResult(true);
+    }
+
     public Task PauseAsync(string appId, CancellationToken ct = default)
     {
         Calls.Add($"pause {appId}");

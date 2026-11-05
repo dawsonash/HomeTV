@@ -14,6 +14,7 @@ public class CommandDispatcherTests
     private readonly SessionState _session = new();
     private readonly ContinueService _continue;
     private readonly CommandDispatcher _dispatcher;
+    private readonly RecordingAppHost _host;
 
     public CommandDispatcherTests()
     {
@@ -27,7 +28,8 @@ public class CommandDispatcherTests
         ]);
         _continue = new ContinueService(apps, new InMemoryContinueStore(), TimeProvider.System);
         var nowPlaying = new NowPlayingService(_platform, _session, TimeProvider.System, NullLogger<NowPlayingService>.Instance);
-        var host = new RecordingAppHost(_platform.Calls);
+        _host = new RecordingAppHost(_platform.Calls);
+        var host = _host;
         var switcher = new AppSwitcher(host, apps, _session, new AppSwitcherOptions(), NullLogger<AppSwitcher>.Instance);
         _dispatcher = new CommandDispatcher(_platform, host, switcher, _platform, apps, _session, _continue, nowPlaying, NullLogger<CommandDispatcher>.Instance);
     }
@@ -41,6 +43,21 @@ public class CommandDispatcherTests
         await _dispatcher.DispatchAsync(new LaunchCommand("youtube", entry.Id));
 
         Assert.Equal(["launch youtube https://www.youtube.com/watch?v=abc&t=120s"], _platform.Calls);
+    }
+
+    [Fact]
+    public async Task Continue_entry_for_the_video_still_open_brings_that_tab_back()
+    {
+        // Watching a video, then Home, then its Continue watching card: no second copy of the video.
+        await _dispatcher.DispatchAsync(new LaunchCommand("youtube"));
+        _host.Pages["youtube"] = "https://www.youtube.com/watch?v=abc&t=90s#comments";
+        _continue.Observe("youtube", new PageSnapshot("https://www.youtube.com/watch?v=abc", "A video", null, 125, 600));
+        await _dispatcher.DispatchAsync(new HomeCommand());
+        _platform.Calls.Clear();
+
+        await _dispatcher.DispatchAsync(new LaunchCommand("youtube", Assert.Single(_continue.Entries).Id));
+
+        Assert.Equal(["show youtube"], _platform.Calls);
     }
 
     [Fact]
