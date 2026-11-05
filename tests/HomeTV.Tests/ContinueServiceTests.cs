@@ -101,6 +101,19 @@ public class ContinueServiceTests
         Assert.Equal("Show", entry.Title);
     }
 
+    [Theory]
+    [InlineData("Watch Bluey | Disney+", "Bluey")]
+    [InlineData("Watch Abbott Elementary Online | Hulu", "Abbott Elementary")]
+    [InlineData("Shogun - Hulu", "Shogun")]
+    public void Drops_the_app_name_from_titles(string title, string expected)
+    {
+        var service = Create();
+
+        service.Observe("prime", new PageSnapshot("https://www.primevideo.com/detail/XYZ/", title, null, 300, 3000));
+
+        Assert.Equal(expected, Assert.Single(service.Entries).Title);
+    }
+
     [Fact]
     public void Resume_url_backs_up_a_few_seconds_when_the_app_supports_a_start_time()
     {

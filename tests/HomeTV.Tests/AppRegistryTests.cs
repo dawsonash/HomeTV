@@ -9,7 +9,7 @@ public class AppRegistryTests
     {
         var registry = AppRegistry.Load(Path.Combine(AppContext.BaseDirectory, "apps.json"));
 
-        Assert.Equal(["prime", "fubo", "youtube", "games", "spotify"], registry.Apps.Select(a => a.Id));
+        Assert.Equal(["prime", "disney", "hulu", "fubo", "youtube", "games", "spotify"], registry.Apps.Select(a => a.Id));
         Assert.Equal(AppKind.Shell, registry.Find("games")!.Kind);
         Assert.Equal("Spotify", registry.Find("spotify")!.WindowProcess); // Store app; Home closes its window.
         Assert.Equal("youtube", registry.Find("YouTube")!.EdgeProfile);

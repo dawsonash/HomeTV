@@ -10,6 +10,26 @@
     "color": "#1399ff"
   },
   {
+    "id": "disney",
+    "name": "Disney+",
+    "kind": "edge",
+    "target": "https://www.disneyplus.com",
+    "edgeProfile": "disney",
+    "resumePattern": "^https://www\\.disneyplus\\.com/(.*/)?(play|video)/",
+    "hdr": false,
+    "color": "#0b3fd0"
+  },
+  {
+    "id": "hulu",
+    "name": "Hulu",
+    "kind": "edge",
+    "target": "https://www.hulu.com",
+    "edgeProfile": "hulu",
+    "resumePattern": "^https://www\\.hulu\\.com/watch/",
+    "hdr": false,
+    "color": "#1ce783"
+  },
+  {
     "id": "fubo",
     "name": "Fubo",
     "kind": "edge",

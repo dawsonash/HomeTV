@@ -459,6 +459,28 @@ body.ambient .scrim { background: rgb(8 9 12 / 0.2); }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* ✕ that removes a card: only on the selected or hovered card; lit when the D-pad is on it (up from the card). */
+.card-remove {
+  position: absolute;
+  top: 0.5vw;
+  right: 0.5vw;
+  width: 2vw;
+  height: 2vw;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  font: inherit;
+  font-size: 1vw;
+  line-height: 2vw;
+  text-align: center;
+  color: #fff;
+  background: rgb(0 0 0 / 0.65);
+  opacity: 0;
+  transition: opacity 120ms ease-out, transform 120ms ease-out, background 120ms ease-out;
+}
+.card.focused .card-remove, body.pointer .card:hover .card-remove { opacity: 1; }
+.card.remove-focused .card-remove { background: #fff; color: #000; transform: scale(1.2); box-shadow: 0 0 0 0.2vw var(--focus); }
+body.pointer .card-remove { cursor: pointer; }
 body.ambient .continue { opacity: 0; pointer-events: none; }
 body.pointer .card { cursor: pointer; }
 

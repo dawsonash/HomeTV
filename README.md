@@ -2,7 +2,7 @@
 
 An ad-free TV home screen for an old gaming PC, with a phone remote at `http://hometv.local:8888`.
 
-- **Launcher**: full-screen tiles (Prime Video, Fubo, YouTube, Steam, Spotify) that replace the Windows shell,
+- **Launcher**: full-screen tiles (Prime Video, Disney+, Hulu, Fubo, YouTube, Steam, Spotify) that replace the Windows shell,
   with weather and sports widgets above them.
 - **Remote**: phone web app with a D-pad, touchpad, keyboard and app list. Phones pair with a PIN shown on the TV.
 - **Server**: .NET 10 + WebSockets. It injects input with Win32 `SendInput`, launches Edge app windows and Steam Big Picture, and puts the PC to sleep.
@@ -124,12 +124,15 @@ bottom of the screen without their card backgrounds, leaving the photo, clock an
 press (or click) only wakes it, so it never launches anything by accident.
 
 **Continue watching**: a row under the tiles (down from the tiles), and a list on the phone's Apps tab, of the last
-videos you played in YouTube and Prime Video. Opening one goes straight back to that page; YouTube also starts at
+videos you played in YouTube, Prime Video, Disney+ and Hulu. Opening one goes straight back to that page; YouTube also starts at
 where you stopped. While an Edge app with a `resumePattern` in `config/apps.json` is open, HomeTV reads its page's
 address, title, picture and video position every 5 seconds through Edge's DevTools port (`--remote-debugging-port=0`,
 loopback only; `src/HomeTV.Platform.Windows/EdgeDevTools.cs`). A page joins the row after 10 seconds of playback and
-leaves it once you reach the credits. Edge only opens that port for a separate profile, so those apps need an
-`edgeProfile` (Prime has its own `prime` profile for this, so it needs one sign-in there). Saved in
+leaves it once you reach the credits, or when you remove it: the ✕ in the corner of the selected card (**up**
+from a card selects it, OK removes it, **up** again goes back to the tiles; or click it). It comes back if you play
+that video again. On Prime a whole series is one card (its `detail/` page), so it stays until you finish the last
+episode you watch or remove it, and a trailer that autoplays for 10s on that page moves it to the front. Edge only opens that port for a separate profile, so those apps need an
+`edgeProfile` (Prime, Disney+ and Hulu each have their own, so each needs one sign-in there). Saved in
 `%LOCALAPPDATA%\HomeTV\continue.json`. Fubo has no `resumePattern` yet: add one once you know which of its URLs are
 worth reopening.
 

@@ -278,6 +278,22 @@ Invoke-WithTvUserHive {
 }
 Write-Host "HomeTV starts at sign-in: $exe"
 
+Step "Keep other apps from opening at '$TvUser' sign-in (Spotify)"
+# The Store Spotify registers a startup task and turns it on at first run, so it pops up over the launcher at every
+# boot. State 1 = "turned off by the user", the same as the switch in Settings > Apps > Startup. Only Spotify's
+# Run entry (non-Store installs) is removed; other Run entries are left alone.
+Invoke-WithTvUserHive {
+    param($root)
+    $appData = "$root\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData"
+    Get-ChildItem $appData -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -like "SpotifyAB.SpotifyMusic_*" } | ForEach-Object {
+        Get-ChildItem $_.PSPath | Where-Object { (Get-ItemProperty $_.PSPath).PSObject.Properties.Name -contains "State" } | ForEach-Object {
+            Set-ItemProperty -Path $_.PSPath -Name State -Value 1 -Type DWord
+            Write-Host "Turned off startup task $($_.PSChildName)"
+        }
+    }
+    Remove-ItemProperty -Path "$root\Software\Microsoft\Windows\CurrentVersion\Run" -Name "Spotify" -ErrorAction SilentlyContinue
+}
+
 Step "Restart task (lets deploys restart HomeTV inside the $TvUser desktop session)"
 $restartScript = Join-Path $InstallDir "restart-hometv.ps1"
 @"

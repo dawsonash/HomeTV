@@ -1,6 +1,6 @@
 import { PHOTO_MODES, POINTER_SPEED_MAX, POINTER_SPEED_MIN, type AppTile, type ContinueEntry, type PairedDeviceInfo, type PhotoList, type PhotoMode, type RemoteKey, type SystemInfo } from "../shared/protocol";
 import { cycleAudio, renderAudio } from "./audio";
-import { fetchContinue, renderContinue } from "./continue";
+import { fetchContinue, removeContinue, renderContinue } from "./continue";
 import { qrSvg } from "../shared/qr";
 import { HubSocket } from "../shared/socket";
 import { startSlideshow } from "./slideshow";
@@ -19,6 +19,8 @@ let focusedTile = 0;
 let continueEntries: ContinueEntry[] = [];
 let inContinueRow = false;
 let focusedCard = 0;
+/** The D-pad is on the focused card's ✕ (up from the card) rather than the card itself. */
+let onRemoveButton = false;
 /** A header button is selected instead of a tile: the audio button (top left), or idle or settings (top right). */
 type HeaderButton = "audio" | "idle" | "gear";
 let headerFocus: HeaderButton | null = null;
@@ -106,6 +108,7 @@ function homeKey(key: RemoteKey): void {
     case "down":
       if (continueEntries.length > 0) {
         inContinueRow = true;
+        onRemoveButton = false;
         // Start from the card under the selected tile, roughly.
         focusedCard = Math.min(focusedTile, continueEntries.length - 1);
         renderFocus();
@@ -135,15 +138,37 @@ function continueKey(key: RemoteKey): void {
       renderFocus();
       break;
     case "up":
+      // Card → its ✕ → the tiles, matching where the ✕ sits.
+      if (onRemoveButton) inContinueRow = false;
+      onRemoveButton = !onRemoveButton && inContinueRow;
+      renderFocus();
+      break;
+    case "down":
+      onRemoveButton = false;
+      renderFocus();
+      break;
     case "back":
-      inContinueRow = false;
+      if (onRemoveButton) onRemoveButton = false;
+      else inContinueRow = false;
       renderFocus();
       break;
     case "ok":
     case "enter":
-      openCard(focusedCard);
+      if (onRemoveButton) void removeCard(focusedCard);
+      else openCard(focusedCard);
       break;
   }
+}
+
+async function removeCard(index: number): Promise<void> {
+  const entry = continueEntries[index];
+  if (!entry) return;
+  onRemoveButton = false;
+  if (!(await removeContinue(entry.id))) {
+    toast("Couldn't remove that one. Try again.");
+    return;
+  }
+  await loadContinue();
 }
 
 function openCard(index: number): void {
@@ -162,6 +187,7 @@ async function loadContinue(): Promise<void> {
     apps,
     (i) => {
       inContinueRow = true;
+      onRemoveButton = false;
       headerFocus = null;
       focusedCard = i;
       renderFocus();
@@ -170,6 +196,10 @@ async function loadContinue(): Promise<void> {
       focusedCard = i;
       renderFocus();
       openCard(i);
+    },
+    (i) => {
+      focusedCard = i;
+      void removeCard(i);
     },
   );
   renderFocus();
@@ -272,7 +302,11 @@ function renderTiles(): void {
 function renderFocus(): void {
   const onTiles = !headerFocus && !inContinueRow;
   document.querySelectorAll(".tile").forEach((tile, i) => tile.classList.toggle("focused", onTiles && i === focusedTile));
-  document.querySelectorAll(".card").forEach((card, i) => card.classList.toggle("focused", !headerFocus && inContinueRow && i === focusedCard));
+  document.querySelectorAll(".card").forEach((card, i) => {
+    const focused = !headerFocus && inContinueRow && i === focusedCard;
+    card.classList.toggle("focused", focused);
+    card.classList.toggle("remove-focused", focused && onRemoveButton);
+  });
   $("#settings-button").classList.toggle("focused", headerFocus === "gear");
   $("#idle-button").classList.toggle("focused", headerFocus === "idle");
   $("#audio-button").classList.toggle("focused", headerFocus === "audio");

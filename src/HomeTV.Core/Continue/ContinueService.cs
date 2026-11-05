@@ -222,9 +222,10 @@ public sealed class ContinueService
             return null;
         title = Regex.Replace(title.Trim(), @"\s+", " ");
         // "Some video - YouTube", "Watch Show | Prime Video": the tile already says which app.
-        title = Regex.Replace(title, @"\s*[-|–]\s*(YouTube|Prime Video|Amazon\.com|Fubo)$", "", RegexOptions.IgnoreCase);
+        title = Regex.Replace(title, @"\s*[-|–]\s*(YouTube|Prime Video|Amazon\.com|Fubo|Disney\+|Hulu)$", "", RegexOptions.IgnoreCase);
         title = Regex.Replace(title, @"^\(\d+\)\s*", ""); // YouTube's "(3) " notification count.
         title = Regex.Replace(title, @"^Watch\s+", "", RegexOptions.IgnoreCase);
+        title = Regex.Replace(title, @"\s+Online$", "", RegexOptions.IgnoreCase); // Hulu's "Watch X Online".
         return title.Length > MaxTitleLength ? title[..MaxTitleLength] : title;
     }
 
