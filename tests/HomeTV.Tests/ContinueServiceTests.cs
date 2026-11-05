@@ -90,6 +90,31 @@ public class ContinueServiceTests
     }
 
     [Fact]
+    public void An_ad_ending_on_the_page_does_not_remove_the_video()
+    {
+        var service = Create();
+        service.Observe("youtube", Video("https://www.youtube.com/watch?v=abc", 200, duration: 615));
+
+        // A mid-roll ad: 50s into a 63s ad looks like "in the credits" if taken as the video.
+        Assert.False(service.Observe("youtube", Video("https://www.youtube.com/watch?v=abc", 50, duration: 63)));
+
+        var entry = Assert.Single(service.Entries);
+        Assert.Equal(200, entry.Position);
+        Assert.Equal(615, entry.Duration);
+    }
+
+    [Fact]
+    public void Short_videos_still_finish()
+    {
+        var service = Create();
+        service.Observe("youtube", Video("https://www.youtube.com/watch?v=abc", 30, duration: 120));
+
+        Assert.True(service.Observe("youtube", Video("https://www.youtube.com/watch?v=abc", 100, duration: 120)));
+
+        Assert.Empty(service.Entries);
+    }
+
+    [Fact]
     public void Live_streams_keep_no_duration()
     {
         var service = Create();

@@ -31,6 +31,14 @@ public sealed class ContinueService
     /// <summary>A page only counts once its video has played this far, so browsing past a trailer doesn't add it.</summary>
     public const double MinWatchedSeconds = 10;
 
+    /// <summary>
+    /// Something this short playing on a page whose video was at least <see cref="LongVideoSeconds"/> is an ad (or a
+    /// trailer), not what's being watched: its times are ignored, so it can't look like the credits and drop the entry.
+    /// </summary>
+    public const double AdMaxSeconds = 180;
+
+    public const double LongVideoSeconds = 300;
+
     private const int MaxTitleLength = 200;
     private const int MaxUrlLength = 2000;
 
@@ -103,6 +111,8 @@ public sealed class ContinueService
         lock (_lock)
         {
             var index = _entries.FindIndex(e => e.Id == id);
+            if (index >= 0 && _entries[index].Duration is >= LongVideoSeconds && duration is < AdMaxSeconds)
+                return false; // An ad on the page: ignore its times.
 
             if (position is { } p && duration is { } d && IsFinished(p, d))
             {

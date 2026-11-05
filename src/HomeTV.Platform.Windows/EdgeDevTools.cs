@@ -41,7 +41,9 @@ internal static class EdgeDevTools
           const ogCurrent = !ogUrl || ogUrl.split(/[?#]/)[0] === location.origin + location.pathname;
           const media = navigator.mediaSession?.metadata;
           const art = media?.artwork?.length ? media.artwork[media.artwork.length - 1].src : null;
-          const video = [...document.querySelectorAll("video")]
+          // While YouTube plays an ad it's in the same <video>, and its times are the ad's: report no video then.
+          const ad = !!document.querySelector(".html5-video-player.ad-showing, .ad-interrupting");
+          const video = ad ? null : [...document.querySelectorAll("video")]
             .filter((v) => v.readyState > 0)
             .sort((a, b) => b.videoWidth * b.videoHeight - a.videoWidth * a.videoHeight)[0];
           return {
