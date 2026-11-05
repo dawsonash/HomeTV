@@ -180,7 +180,8 @@ main {
 /* Widgets left, Continue watching right; the row is as tall as its tallest card. */
 .top-row { display: flex; gap: 2vw; align-items: stretch; margin-bottom: 3.5vh; }
 .top-row:has(> .widgets[hidden]):has(> .continue[hidden]) { display: none; }
-.widgets { display: flex; gap: 2vw; }
+/* Fills the row: the whole width, or whatever Continue watching leaves. */
+.widgets { display: flex; gap: 2vw; flex: 1 1 auto; min-width: 0; }
 .widgets[hidden] { display: none; }
 .widget {
   display: flex;
@@ -196,7 +197,7 @@ body.has-photos .widget { background: rgb(16 18 24 / 0.5); backdrop-filter: blur
 .widget-footer { font-size: 0.9vw; margin-top: auto; }
 .widget-footer:empty { display: none; }
 
-.weather { flex: 0 0 auto; }
+.weather { flex: 1 1 auto; }
 .wx-now { display: flex; align-items: center; gap: 1.2vw; }
 .wx-icon { font-size: 3vw; line-height: 1; }
 .wx-temp { font-size: 3.6vw; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -209,7 +210,7 @@ body.has-photos .widget { background: rgb(16 18 24 / 0.5); backdrop-filter: blur
 .wx-rain { font-size: 0.95vw !important; }
 
 /* Scoreboard: each game is away over home, with the status column on the right. */
-.sports { flex: 0 0 30vw; min-width: 0; }
+.sports { flex: 1 1 30vw; min-width: 0; }
 .games { display: flex; flex-direction: column; }
 .game {
   display: grid;
@@ -423,13 +424,14 @@ body.ambient .scrim { background: rgb(8 9 12 / 0.2); }
 
 /* ---- Continue watching (continue.ts) ----
    A card at the right end of the widget row, above the tiles. */
-.continue { flex: 1 1 0; min-width: 0; margin-left: auto; transition: opacity var(--ambient-fade) ease-out; }
+/* Only as wide as its cards, so the widgets get the rest of the row. */
+.continue { flex: 0 0 auto; transition: opacity var(--ambient-fade) ease-out; }
 .continue[hidden] { display: none; }
 .continue h2 { margin: 0; font-size: 1.1vw; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 /* Two by two (MAX_CARDS in continue.ts). */
 .continue-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, 10vw);
   gap: 1.4vh 1.2vw;
 }
 .continue .card-title { -webkit-line-clamp: 1; font-size: 0.95vw; margin-top: 0.6vh; }
@@ -481,7 +483,7 @@ body.ambient .scrim { background: rgb(8 9 12 / 0.2); }
 .card.focused .card-remove, body.pointer .card:hover .card-remove { opacity: 1; }
 .card.remove-focused .card-remove { background: #fff; color: #000; transform: scale(1.2); box-shadow: 0 0 0 0.2vw var(--focus); }
 body.pointer .card-remove { cursor: pointer; }
-body.ambient .continue { opacity: 0; pointer-events: none; }
+body.ambient .continue { opacity: 0; visibility: hidden; pointer-events: none; transition: none; }
 body.pointer .card { cursor: pointer; }
 
 /* Split screen: the launcher sits behind the tiles as a black backdrop (main.ts). */
@@ -489,13 +491,18 @@ html:has(body.split), body.split { background: #000; }
 body.split > * { visibility: hidden; }
 
 /* Ambient: the widgets drop to the bottom of the screen, out of the photo's way (setAmbient() in main.ts glides them). */
+/* Stacked in the bottom-left corner, each at its own natural size. */
 body.ambient .widgets {
   position: fixed;
   left: 5vw;
-  right: 5vw;
   bottom: 5vh;
   margin: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1vh;
 }
+body.ambient .widget { flex: none; }
+body.ambient .sports { width: 30vw; }
 
 /* Settings → Background photos: "Each photo stays up" slider under the mode button. */
 .slide-time { margin: 1.4vh 0 1vh; font-size: 1.3vw; }

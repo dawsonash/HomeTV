@@ -121,11 +121,12 @@ show in All until someone tags them by hand on the phone. Hand-set tags are neve
 deliberately cautious (bare skin, drinking, rude gestures), so expect to un-flag a few.
 
 **Ambient mode**: after 5 minutes without remote, keyboard, controller or mouse input, or straight away from the moon
-(**Idle**) button beside Settings, the tiles, pairing QR and header buttons fade away, and the widgets glide to the
-bottom of the screen without their card backgrounds, leaving the photo, clock and widgets. The first
+(**Idle**) button beside Settings, the tiles, pairing QR and header buttons fade away, Continue watching hides, and the
+weather and sports widgets glide to the bottom-left corner, stacked, without their card backgrounds, leaving the photo, clock and widgets. The first
 press (or click) only wakes it, so it never launches anything by accident.
 
-**Continue watching**: a card at the right end of the widget row, above the tiles (up to 4 shows, two by two), of the last
+**Continue watching**: a card at the right end of the widget row, above the tiles (up to 4 shows, two by two;
+without any, the widgets fill the row), of the last
 videos you played in YouTube, Prime Video, Disney+ and Hulu. Opening one goes straight back to that page; YouTube also starts at
 where you stopped. If the app is still open, its tab is reused: it's just brought back when it's already on
 that video, otherwise the tab goes to the video, so the same video never plays twice. While an Edge app with a `resumePattern` in `config/apps.json` is open, HomeTV reads its page's
