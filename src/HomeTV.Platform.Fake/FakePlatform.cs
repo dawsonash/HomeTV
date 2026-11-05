@@ -63,6 +63,14 @@ public sealed class FakeAppHost(ILogger<FakeAppHost> logger) : IAppHost
         return Task.CompletedTask;
     }
 
+    public Task<string?> CurrentUrlAsync(string appId, CancellationToken ct = default) => Task.FromResult<string?>(null);
+
+    public Task<bool> NavigateAsync(string appId, string url, CancellationToken ct = default)
+    {
+        logger.LogInformation("Navigate {App} → {Url}", appId, url);
+        return Task.FromResult(IsRunning(appId));
+    }
+
     public Task PauseAsync(string appId, CancellationToken ct = default)
     {
         logger.LogInformation("Pause {App}", appId);

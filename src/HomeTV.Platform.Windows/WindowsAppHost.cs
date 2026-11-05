@@ -59,6 +59,8 @@ public sealed class WindowsAppHost : IAppHost, IDisposable
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HomeTV", "edge-profiles");
 
     private readonly Lock _lock = new();
+    /// <summary>Per app: what the last "page seen" log line said and when, so it's logged on change or once a minute.</summary>
+    private readonly Dictionary<string, (string Seen, DateTime At)> _pageLog = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, RunningApp> _apps = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>The app that should be in front once its window shows up; null for the launcher (or split screen).</summary>
@@ -594,11 +596,16 @@ public sealed class WindowsAppHost : IAppHost, IDisposable
         if (EdgeDevTools.ReadPort(profileDir) is not { } port)
         {
             // Edge was already running for this profile without the DevTools port (e.g. from before an update).
-            logger.LogDebug("{App}: Edge has no DevTools port open, can't see its page", app.Name);
+            LogPageSeen(app, "no DevTools port open, can't see its page");
             return;
         }
         if (await EdgeDevTools.SnapshotAsync(port, ct) is not { } page)
+        {
+            var pages = await EdgeDevTools.PageUrlsAsync(port, ct);
+            LogPageSeen(app, $"couldn't read its page; pages open: {(pages is null ? "Edge not answering" : string.Join(" | ", pages))}");
             return;
+        }
+        LogPageSeen(app, $"{page.Url} at {page.Position?.ToString("0") ?? "-"}s of {page.Duration?.ToString("0") ?? "-"}s");
         try
         {
             PageObserved?.Invoke(app.Id, page);
@@ -607,6 +614,35 @@ public sealed class WindowsAppHost : IAppHost, IDisposable
         {
             logger.LogWarning(ex, "Couldn't record {App}'s page", app.Name);
         }
+    }
+
+    /// <summary>For Continue watching troubleshooting: what HomeTV sees on an app's page, when it changes or once a minute.</summary>
+    private void LogPageSeen(AppDefinition app, string seen)
+    {
+        var now = DateTime.UtcNow;
+        var key = seen.Split(" at ")[0];
+        lock (_lock)
+        {
+            if (_pageLog.TryGetValue(app.Id, out var last) && last.Seen == key && now - last.At < TimeSpan.FromMinutes(1))
+                return;
+            _pageLog[app.Id] = (key, now);
+        }
+        logger.LogInformation("{App} page: {Seen}", app.Name, seen);
+    }
+
+    public async Task<string?> CurrentUrlAsync(string appId, CancellationToken ct = default)
+    {
+        if (Get(appId) is not { } running || DevToolsPort(running.App) is not { } port)
+            return null;
+        return (await EdgeDevTools.SnapshotAsync(port, ct))?.Url;
+    }
+
+    public async Task<bool> NavigateAsync(string appId, string url, CancellationToken ct = default)
+    {
+        if (Get(appId) is not { } running || DevToolsPort(running.App) is not { } port)
+            return false;
+        logger.LogInformation("{App}: opening {Url} in its open tab", running.App.Name, url);
+        return await EdgeDevTools.NavigateAsync(port, url, ct);
     }
 
     private RunningApp? Get(string appId)

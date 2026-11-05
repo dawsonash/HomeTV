@@ -106,15 +106,14 @@ main {
   /* "safe": when widgets, tiles and Continue watching don't all fit, keep the top in place (clear of the speaker
      button) rather than centering them up under the header. */
   justify-content: safe center;
-  padding: 3vh 5vw 4vh;
+  padding: 3vh 5vw 2.5vh;
 }
 
 .tiles {
   display: grid;
-  grid-auto-flow: column;
-  /* Up to 20vw each, shrinking so every tile fits across the screen (five don't at full width). */
-  grid-auto-columns: minmax(0, 20vw);
-  gap: 2vw;
+  /* Four to a row across the whole width (TILES_PER_ROW in main.ts); more tiles start another row. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2.4vh 1.8vw;
 }
 
 .tile {
@@ -122,7 +121,7 @@ main {
   border-radius: 1.2vw;
   display: flex;
   align-items: flex-end;
-  padding: 1.4vw;
+  padding: 1.3vw 1.6vw;
   font-size: 2vw;
   font-weight: 700;
   background: var(--tile-color, #2a2d38);
@@ -138,9 +137,8 @@ main {
 
 .hint { margin-top: 8vh; display: flex; align-items: center; gap: 1.6vw; color: var(--muted); font-size: 1.3vw; line-height: 1.5; }
 .hint .qr-slot { width: 9vw; }
-/* With widgets above the tiles there's less room, so the pairing hint gets smaller. */
-.widgets:not([hidden]) ~ .hint { margin-top: 4vh; }
-.widgets:not([hidden]) ~ .hint .qr-slot { width: 6.5vw; }
+/* With the widget row above the full-width tiles there's no room left for it (the QR is in Settings too). */
+.top-row:not(:has(> .widgets[hidden]):has(> .continue[hidden])) ~ .hint { display: none; }
 
 /* QR codes are drawn by shared/qr.ts with their own white quiet zone. */
 .qr-slot:empty { display: none; }
@@ -179,7 +177,11 @@ main {
 .badge[hidden] { display: none; }
 
 /* ---- Home widgets (widgets.ts) ---- */
-.widgets { display: flex; gap: 2vw; margin-bottom: 4vh; }
+/* Widgets left, Continue watching right; the row is as tall as its tallest card. */
+.top-row { display: flex; gap: 2vw; align-items: stretch; margin-bottom: 3.5vh; }
+.top-row:has(> .widgets[hidden]):has(> .continue[hidden]) { display: none; }
+/* Fills the row: the whole width, or whatever Continue watching leaves. */
+.widgets { display: flex; gap: 2vw; flex: 1 1 auto; min-width: 0; }
 .widgets[hidden] { display: none; }
 .widget {
   display: flex;
@@ -195,7 +197,7 @@ body.has-photos .widget { background: rgb(16 18 24 / 0.5); backdrop-filter: blur
 .widget-footer { font-size: 0.9vw; margin-top: auto; }
 .widget-footer:empty { display: none; }
 
-.weather { flex: 0 0 auto; }
+.weather { flex: 1 1 auto; }
 .wx-now { display: flex; align-items: center; gap: 1.2vw; }
 .wx-icon { font-size: 3vw; line-height: 1; }
 .wx-temp { font-size: 3.6vw; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -208,7 +210,7 @@ body.has-photos .widget { background: rgb(16 18 24 / 0.5); backdrop-filter: blur
 .wx-rain { font-size: 0.95vw !important; }
 
 /* Scoreboard: each game is away over home, with the status column on the right. */
-.sports { flex: 0 0 30vw; min-width: 0; }
+.sports { flex: 1 1 30vw; min-width: 0; }
 .games { display: flex; flex-direction: column; }
 .game {
   display: grid;
@@ -421,18 +423,19 @@ body.ambient #clock { text-shadow: 0 0.1vw 0.8vw rgb(0 0 0 / 0.7), 0 0 0.2vw rgb
 body.ambient .scrim { background: rgb(8 9 12 / 0.2); }
 
 /* ---- Continue watching (continue.ts) ----
-   Below the app tiles; down from the tiles moves into it. It takes the pairing hint's place (the QR is in Settings too). */
-.continue { margin-top: 5vh; transition: opacity var(--ambient-fade) ease-out; }
+   A card at the right end of the widget row, above the tiles. */
+/* Only as wide as its cards, so the widgets get the rest of the row. */
+.continue { flex: 0 0 auto; width: min-content; transition: opacity var(--ambient-fade) ease-out; }
+/* The heading wraps rather than widening the card past its videos. */
 .continue[hidden] { display: none; }
-.continue:not([hidden]) ~ .hint { display: none; }
-.widgets:not([hidden]) ~ .continue { margin-top: 3.5vh; }
-.continue h2 { margin: 0 0 1.6vh; font-size: 1.3vw; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.continue h2 { margin: 0; font-size: 1vw; line-height: 1.2; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+/* One column, the two most recent (MAX_CARDS in continue.ts). */
 .continue-row {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 13vw);
-  gap: 1.6vw;
+  grid-template-columns: 10vw;
+  gap: 1vh;
 }
+.continue .card-title { -webkit-line-clamp: 1; font-size: 0.95vw; margin-top: 0.6vh; }
 .card { opacity: 0.75; transition: transform 120ms ease-out, opacity 120ms ease-out; }
 .card.focused { opacity: 1; transform: scale(1.06); }
 .card-art {
@@ -459,7 +462,29 @@ body.ambient .scrim { background: rgb(8 9 12 / 0.2); }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-body.ambient .continue { opacity: 0; pointer-events: none; }
+/* ✕ that removes a card: only on the selected or hovered card; lit when the D-pad is on it (up from the card). */
+.card-remove {
+  position: absolute;
+  top: 0.5vw;
+  right: 0.5vw;
+  width: 2vw;
+  height: 2vw;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  font: inherit;
+  font-size: 1vw;
+  line-height: 2vw;
+  text-align: center;
+  color: #fff;
+  background: rgb(0 0 0 / 0.65);
+  opacity: 0;
+  transition: opacity 120ms ease-out, transform 120ms ease-out, background 120ms ease-out;
+}
+.card.focused .card-remove, body.pointer .card:hover .card-remove { opacity: 1; }
+.card.remove-focused .card-remove { background: #fff; color: #000; transform: scale(1.2); box-shadow: 0 0 0 0.2vw var(--focus); }
+body.pointer .card-remove { cursor: pointer; }
+body.ambient .continue { opacity: 0; visibility: hidden; pointer-events: none; transition: none; }
 body.pointer .card { cursor: pointer; }
 
 /* Split screen: the launcher sits behind the tiles as a black backdrop (main.ts). */
@@ -467,13 +492,18 @@ html:has(body.split), body.split { background: #000; }
 body.split > * { visibility: hidden; }
 
 /* Ambient: the widgets drop to the bottom of the screen, out of the photo's way (setAmbient() in main.ts glides them). */
+/* Stacked in the bottom-left corner, each at its own natural size. */
 body.ambient .widgets {
   position: fixed;
   left: 5vw;
-  right: 5vw;
   bottom: 5vh;
   margin: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1vh;
 }
+body.ambient .widget { flex: none; }
+body.ambient .sports { width: 30vw; }
 
 /* Settings → Background photos: "Each photo stays up" slider under the mode button. */
 .slide-time { margin: 1.4vh 0 1vh; font-size: 1.3vw; }

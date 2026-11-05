@@ -37,6 +37,18 @@ public interface IAppHost
     /// </summary>
     Task CloseAsync(string appId, CancellationToken ct = default);
 
+    /// <summary>
+    /// The address of the page a running Edge app (with its own profile) is showing, or null if it isn't running
+    /// or HomeTV can't see into it.
+    /// </summary>
+    Task<string?> CurrentUrlAsync(string appId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sends a running Edge app's page to <paramref name="url"/> in the same tab. False if it isn't running or
+    /// HomeTV can't reach its page (no profile, Edge not answering).
+    /// </summary>
+    Task<bool> NavigateAsync(string appId, string url, CancellationToken ct = default);
+
     /// <summary>Pauses any video or audio an app is playing, where the app allows it (Edge apps with a profile).</summary>
     Task PauseAsync(string appId, CancellationToken ct = default);
 

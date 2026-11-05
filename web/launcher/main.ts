@@ -1,6 +1,6 @@
 import { PHOTO_MODES, POINTER_SPEED_MAX, POINTER_SPEED_MIN, type AppTile, type ContinueEntry, type PairedDeviceInfo, type PhotoList, type PhotoMode, type RemoteKey, type SystemInfo } from "../shared/protocol";
 import { cycleAudio, renderAudio } from "./audio";
-import { fetchContinue, renderContinue } from "./continue";
+import { fetchContinue, removeContinue, renderContinue } from "./continue";
 import { qrSvg } from "../shared/qr";
 import { HubSocket } from "../shared/socket";
 import { startSlideshow } from "./slideshow";
@@ -15,10 +15,14 @@ const IDLE_MS = 5 * 60_000;
 
 let apps: AppTile[] = [];
 let focusedTile = 0;
+/** Tiles per row on the home screen; keep in step with `.tiles` in styles.css. */
+const TILES_PER_ROW = 4;
 /** "Continue watching" cards, and whether the D-pad is in that row (below the tiles) rather than on the tiles. */
 let continueEntries: ContinueEntry[] = [];
 let inContinueRow = false;
 let focusedCard = 0;
+/** The D-pad is on the focused card's ✕ (up from the card) rather than the card itself. */
+let onRemoveButton = false;
 /** A header button is selected instead of a tile: the audio button (top left), or idle or settings (top right). */
 type HeaderButton = "audio" | "idle" | "gear";
 let headerFocus: HeaderButton | null = null;
@@ -72,7 +76,27 @@ const socket = new HubSocket({
 
 // ---- Input ----
 
+/**
+ * Pointer first: the phone's touchpad drives the TV, so nothing shows as selected except what's under the pointer.
+ * Arrow keys or OK (a keyboard or controller on the box) bring the selection ring back until the pointer moves.
+ */
+let usingKeys = false;
+const NAV_KEYS: ReadonlySet<RemoteKey> = new Set<RemoteKey>(["up", "down", "left", "right", "ok", "enter"]);
+
+/** Without keys, drops the ring from anything the pointer isn't on. Runs after each focus render. */
+function trimFocusToPointer(): void {
+  if (usingKeys) return;
+  document.querySelectorAll(".focused, .remove-focused").forEach((el) => {
+    if (!el.matches(":hover")) el.classList.remove("focused", "remove-focused");
+  });
+}
+
 function handleKey(key: RemoteKey): void {
+  if (NAV_KEYS.has(key) && !usingKeys) {
+    usingKeys = true;
+    if (view === "settings") renderSettingFocus();
+    else renderFocus();
+  }
   // The first press only brings the tiles back, so a stray OK doesn't launch whatever happens to be selected.
   if (wake()) return;
   if (!$("#pin-overlay").hidden) {
@@ -104,10 +128,9 @@ function homeKey(key: RemoteKey): void {
   }
   switch (key) {
     case "down":
-      if (continueEntries.length > 0) {
-        inContinueRow = true;
-        // Start from the card under the selected tile, roughly.
-        focusedCard = Math.min(focusedTile, continueEntries.length - 1);
+      if (tileRow(focusedTile) < tileRow(apps.length - 1)) {
+        // The tile below, or the last tile when the row below is shorter.
+        focusedTile = Math.min(apps.length - 1, focusedTile + TILES_PER_ROW);
         renderFocus();
       }
       break;
@@ -118,7 +141,18 @@ function homeKey(key: RemoteKey): void {
       moveTile(1);
       break;
     case "up":
-      setHeaderFocus(audioShown() && focusedTile < apps.length / 2 ? "audio" : "gear");
+      if (tileRow(focusedTile) > 0) {
+        focusedTile -= TILES_PER_ROW;
+        renderFocus();
+      } else if (continueEntries.length > 0) {
+        // Continue watching sits above the tiles, top right: start on its bottom card.
+        inContinueRow = true;
+        onRemoveButton = false;
+        focusedCard = continueEntries.length - 1;
+        renderFocus();
+      } else {
+        setHeaderFocus(audioShown() && focusedTile % TILES_PER_ROW < TILES_PER_ROW / 2 ? "audio" : "gear");
+      }
       break;
     case "ok":
     case "enter":
@@ -135,15 +169,47 @@ function continueKey(key: RemoteKey): void {
       renderFocus();
       break;
     case "up":
+      // Card → its ✕ → the card above (one column) → the header.
+      if (!onRemoveButton) onRemoveButton = true;
+      else if (focusedCard >= 1) {
+        focusedCard -= 1;
+        onRemoveButton = false;
+      } else {
+        onRemoveButton = false;
+        inContinueRow = false;
+        headerFocus = "gear";
+      }
+      renderFocus();
+      break;
+    case "down":
+      // ✕ → its card → the card below → the tiles.
+      if (onRemoveButton) onRemoveButton = false;
+      else if (focusedCard + 1 < continueEntries.length) focusedCard += 1;
+      else inContinueRow = false;
+      renderFocus();
+      break;
     case "back":
-      inContinueRow = false;
+      if (onRemoveButton) onRemoveButton = false;
+      else inContinueRow = false;
       renderFocus();
       break;
     case "ok":
     case "enter":
-      openCard(focusedCard);
+      if (onRemoveButton) void removeCard(focusedCard);
+      else openCard(focusedCard);
       break;
   }
+}
+
+async function removeCard(index: number): Promise<void> {
+  const entry = continueEntries[index];
+  if (!entry) return;
+  onRemoveButton = false;
+  if (!(await removeContinue(entry.id))) {
+    toast("Couldn't remove that one. Try again.");
+    return;
+  }
+  await loadContinue();
 }
 
 function openCard(index: number): void {
@@ -162,6 +228,7 @@ async function loadContinue(): Promise<void> {
     apps,
     (i) => {
       inContinueRow = true;
+      onRemoveButton = false;
       headerFocus = null;
       focusedCard = i;
       renderFocus();
@@ -170,6 +237,10 @@ async function loadContinue(): Promise<void> {
       focusedCard = i;
       renderFocus();
       openCard(i);
+    },
+    (i) => {
+      focusedCard = i;
+      void removeCard(i);
     },
   );
   renderFocus();
@@ -230,6 +301,10 @@ document.addEventListener("keydown", (event) => {
 
 // ---- Home ----
 
+function tileRow(index: number): number {
+  return Math.floor(index / TILES_PER_ROW);
+}
+
 function moveTile(by: number): void {
   focusedTile = Math.max(0, Math.min(apps.length - 1, focusedTile + by));
   renderFocus();
@@ -272,10 +347,15 @@ function renderTiles(): void {
 function renderFocus(): void {
   const onTiles = !headerFocus && !inContinueRow;
   document.querySelectorAll(".tile").forEach((tile, i) => tile.classList.toggle("focused", onTiles && i === focusedTile));
-  document.querySelectorAll(".card").forEach((card, i) => card.classList.toggle("focused", !headerFocus && inContinueRow && i === focusedCard));
+  document.querySelectorAll(".card").forEach((card, i) => {
+    const focused = !headerFocus && inContinueRow && i === focusedCard;
+    card.classList.toggle("focused", focused);
+    card.classList.toggle("remove-focused", focused && onRemoveButton);
+  });
   $("#settings-button").classList.toggle("focused", headerFocus === "gear");
   $("#idle-button").classList.toggle("focused", headerFocus === "idle");
   $("#audio-button").classList.toggle("focused", headerFocus === "audio");
+  trimFocusToPointer();
 }
 
 $("#settings-button").addEventListener("mouseenter", () => setHeaderFocus("gear"));
@@ -338,9 +418,18 @@ document.addEventListener("mousemove", (event) => {
   if (at === lastPointer) return;
   lastPointer = at;
   wake();
+  if (usingKeys) {
+    usingKeys = false;
+    trimFocusToPointer();
+  }
   document.body.classList.add("pointer");
   clearTimeout(pointerTimer);
   pointerTimer = window.setTimeout(() => document.body.classList.remove("pointer"), 3000);
+});
+
+// Leaving something takes its ring with it (entering one already selects it, via its mouseenter).
+document.addEventListener("mouseout", () => {
+  if (!usingKeys) requestAnimationFrame(trimFocusToPointer);
 });
 
 function focusables(): HTMLElement[] {
@@ -365,7 +454,8 @@ function renderSettingFocus(): void {
   const items = focusables();
   focusedSetting = Math.min(focusedSetting, Math.max(0, items.length - 1));
   items.forEach((item, i) => item.classList.toggle("focused", i === focusedSetting));
-  items[focusedSetting]?.scrollIntoView({ block: "nearest" });
+  if (usingKeys) items[focusedSetting]?.scrollIntoView({ block: "nearest" });
+  trimFocusToPointer();
 }
 
 /** Runs `action` on the second OK within a few seconds; the first press only arms the button. */

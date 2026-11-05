@@ -31,6 +31,14 @@ public sealed class ContinueService
     /// <summary>A page only counts once its video has played this far, so browsing past a trailer doesn't add it.</summary>
     public const double MinWatchedSeconds = 10;
 
+    /// <summary>
+    /// Something this short playing on a page whose video was at least <see cref="LongVideoSeconds"/> is an ad (or a
+    /// trailer), not what's being watched: its times are ignored, so it can't look like the credits and drop the entry.
+    /// </summary>
+    public const double AdMaxSeconds = 180;
+
+    public const double LongVideoSeconds = 300;
+
     private const int MaxTitleLength = 200;
     private const int MaxUrlLength = 2000;
 
@@ -103,6 +111,8 @@ public sealed class ContinueService
         lock (_lock)
         {
             var index = _entries.FindIndex(e => e.Id == id);
+            if (index >= 0 && _entries[index].Duration is >= LongVideoSeconds && duration is < AdMaxSeconds)
+                return false; // An ad on the page: ignore its times.
 
             if (position is { } p && duration is { } d && IsFinished(p, d))
             {
@@ -159,6 +169,15 @@ public sealed class ContinueService
             if (_dirty)
                 SaveLocked(force: true);
         }
+    }
+
+    /// <summary>Whether <paramref name="url"/> is <paramref name="entry"/>'s video, wherever it's paused.</summary>
+    public bool IsSamePage(ContinueEntry entry, string url)
+    {
+        if (!IsWebUrl(url) || url.Length > MaxUrlLength)
+            return false;
+        var timeParam = _apps.Find(entry.AppId)?.ResumeTimeParam;
+        return string.Equals(Normalize(url, timeParam), entry.Url, StringComparison.Ordinal);
     }
 
     /// <summary>The address to open: the saved page, starting at the saved time if the app supports that.</summary>
@@ -222,9 +241,10 @@ public sealed class ContinueService
             return null;
         title = Regex.Replace(title.Trim(), @"\s+", " ");
         // "Some video - YouTube", "Watch Show | Prime Video": the tile already says which app.
-        title = Regex.Replace(title, @"\s*[-|–]\s*(YouTube|Prime Video|Amazon\.com|Fubo)$", "", RegexOptions.IgnoreCase);
+        title = Regex.Replace(title, @"\s*[-|–]\s*(YouTube|Prime Video|Amazon\.com|Fubo|Disney\+|Hulu)$", "", RegexOptions.IgnoreCase);
         title = Regex.Replace(title, @"^\(\d+\)\s*", ""); // YouTube's "(3) " notification count.
         title = Regex.Replace(title, @"^Watch\s+", "", RegexOptions.IgnoreCase);
+        title = Regex.Replace(title, @"\s+Online$", "", RegexOptions.IgnoreCase); // Hulu's "Watch X Online".
         return title.Length > MaxTitleLength ? title[..MaxTitleLength] : title;
     }
 

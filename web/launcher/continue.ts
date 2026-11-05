@@ -1,7 +1,7 @@
 import type { AppTile, ContinueEntry } from "../shared/protocol";
 
-/** Cards that fit across the TV at their size; the server keeps a few more. */
-export const MAX_CARDS = 6;
+/** The two most recent, stacked in the top-right card; the server keeps a few more. */
+export const MAX_CARDS = 2;
 
 export async function fetchContinue(): Promise<ContinueEntry[]> {
   try {
@@ -19,9 +19,19 @@ export function progress(entry: ContinueEntry): number | null {
   return Math.max(0, Math.min(1, entry.position / entry.duration));
 }
 
+/** Takes a card out of the row for good (until that video is played again). */
+export async function removeContinue(id: string): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/continue/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return response.ok || response.status === 404;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Draws the row. `onPoint` and `onOpen` get the card's index, so the mouse selects and opens cards the same way
- * the D-pad does.
+ * Draws the row. `onPoint`, `onOpen` and `onRemove` get the card's index, so the mouse selects, opens and removes
+ * cards the same way the D-pad does.
  */
 export function renderContinue(
   section: HTMLElement,
@@ -30,6 +40,7 @@ export function renderContinue(
   apps: AppTile[],
   onPoint: (index: number) => void,
   onOpen: (index: number) => void,
+  onRemove: (index: number) => void,
 ): void {
   section.hidden = entries.length === 0;
   row.replaceChildren(
@@ -67,6 +78,19 @@ export function renderContinue(
         bar.append(fill);
         art.append(bar);
       }
+
+      // ✕ in the corner: shown on the selected (or hovered) card. Up from a card selects it.
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "card-remove";
+      remove.tabIndex = -1;
+      remove.setAttribute("aria-label", `Remove ${entry.title} from Continue watching`);
+      remove.textContent = "✕";
+      remove.addEventListener("click", (event) => {
+        event.stopPropagation();
+        onRemove(i);
+      });
+      art.append(remove);
 
       const title = document.createElement("div");
       title.className = "card-title";

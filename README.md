@@ -2,9 +2,11 @@
 
 An ad-free TV home screen for an old gaming PC, with a phone remote at `http://hometv.local:8888`.
 
-- **Launcher**: full-screen tiles (Prime Video, Fubo, YouTube, Steam, Spotify) that replace the Windows shell,
+- **Launcher**: full-screen tiles, four to a row across the whole screen (Prime Video, Disney+, Hulu, Fubo, YouTube, Steam, Spotify) that replace the Windows shell,
   with weather and sports widgets above them.
-- **Remote**: phone web app with a D-pad, touchpad, keyboard and app list. Phones pair with a PIN shown on the TV.
+- **Remote**: phone web app with a touchpad, keyboard and app list. The TV home screen is pointer-first: nothing
+  shows as selected except what's under the pointer; arrow keys or OK on a keyboard or controller bring the
+  selection ring back until the pointer moves. Phones pair with a PIN shown on the TV.
 - **Server**: .NET 10 + WebSockets. It injects input with Win32 `SendInput`, launches Edge app windows and Steam Big Picture, and puts the PC to sleep.
 
 ## Layout
@@ -119,17 +121,22 @@ show in All until someone tags them by hand on the phone. Hand-set tags are neve
 deliberately cautious (bare skin, drinking, rude gestures), so expect to un-flag a few.
 
 **Ambient mode**: after 5 minutes without remote, keyboard, controller or mouse input, or straight away from the moon
-(**Idle**) button beside Settings, the tiles, pairing QR and header buttons fade away, and the widgets glide to the
-bottom of the screen without their card backgrounds, leaving the photo, clock and widgets. The first
+(**Idle**) button beside Settings, the tiles, pairing QR and header buttons fade away, Continue watching hides, and the
+weather and sports widgets glide to the bottom-left corner, stacked, without their card backgrounds, leaving the photo, clock and widgets. The first
 press (or click) only wakes it, so it never launches anything by accident.
 
-**Continue watching**: a row under the tiles (down from the tiles), and a list on the phone's Apps tab, of the last
-videos you played in YouTube and Prime Video. Opening one goes straight back to that page; YouTube also starts at
-where you stopped. While an Edge app with a `resumePattern` in `config/apps.json` is open, HomeTV reads its page's
+**Continue watching**: a card at the right end of the widget row, above the tiles (the 2 most recent, stacked;
+without any, the widgets fill the row), of the last
+videos you played in YouTube, Prime Video, Disney+ and Hulu. Opening one goes straight back to that page; YouTube also starts at
+where you stopped. If the app is still open, its tab is reused: it's just brought back when it's already on
+that video, otherwise the tab goes to the video, so the same video never plays twice. While an Edge app with a `resumePattern` in `config/apps.json` is open, HomeTV reads its page's
 address, title, picture and video position every 5 seconds through Edge's DevTools port (`--remote-debugging-port=0`,
 loopback only; `src/HomeTV.Platform.Windows/EdgeDevTools.cs`). A page joins the row after 10 seconds of playback and
-leaves it once you reach the credits. Edge only opens that port for a separate profile, so those apps need an
-`edgeProfile` (Prime has its own `prime` profile for this, so it needs one sign-in there). Saved in
+leaves it once you reach the credits, or when you remove it: the ✕ in the corner of the selected card (**up**
+from a card selects it, OK removes it, **up** again goes back to the tiles; or click it). It comes back if you play
+that video again. On Prime a whole series is one card (its `detail/` page), so it stays until you finish the last
+episode you watch or remove it, and a trailer that autoplays for 10s on that page moves it to the front. Edge only opens that port for a separate profile, so those apps need an
+`edgeProfile` (Prime, Disney+ and Hulu each have their own, so each needs one sign-in there). Saved in
 `%LOCALAPPDATA%\HomeTV\continue.json`. Fubo has no `resumePattern` yet: add one once you know which of its URLs are
 worth reopening.
 

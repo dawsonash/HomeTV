@@ -84,15 +84,19 @@ public sealed class CommandDispatcher(
 
         // Only pages HomeTV saw the app showing itself: a remote can't make Edge open an arbitrary address.
         string? url = null;
+        Func<string, bool>? isSamePage = null;
         if (entryId is not null)
         {
             if (continueWatching.Find(entryId) is { } entry && string.Equals(entry.AppId, app.Id, StringComparison.OrdinalIgnoreCase))
+            {
                 url = continueWatching.ResumeUrl(entry);
+                isSamePage = current => continueWatching.IsSamePage(entry, current);
+            }
             else
                 logger.LogWarning("Unknown continue-watching entry {Entry} for {AppId}; opening its start page", entryId, appId);
         }
 
-        await switcher.LaunchAsync(app, url, ct);
+        await switcher.LaunchAsync(app, url, ct, isSamePage);
     }
 
     /// <summary>Keys that always go to the OS, even while the launcher is in front.</summary>

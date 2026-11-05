@@ -41,7 +41,9 @@ internal static class EdgeDevTools
           const ogCurrent = !ogUrl || ogUrl.split(/[?#]/)[0] === location.origin + location.pathname;
           const media = navigator.mediaSession?.metadata;
           const art = media?.artwork?.length ? media.artwork[media.artwork.length - 1].src : null;
-          const video = [...document.querySelectorAll("video")]
+          // While YouTube plays an ad it's in the same <video>, and its times are the ad's: report no video then.
+          const ad = !!document.querySelector(".html5-video-player.ad-showing, .ad-interrupting");
+          const video = ad ? null : [...document.querySelectorAll("video")]
             .filter((v) => v.readyState > 0)
             .sort((a, b) => b.videoWidth * b.videoHeight - a.videoWidth * a.videoHeight)[0];
           return {
@@ -152,6 +154,26 @@ internal static class EdgeDevTools
     }
 
     public static Task PauseAsync(int port, CancellationToken ct) => EvaluateAsync(port, PauseScript, ct);
+
+    /// <summary>Loads <paramref name="url"/> in the profile's page (same tab). False if Edge isn't answering.</summary>
+    public static async Task<bool> NavigateAsync(int port, string url, CancellationToken ct)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(Timeout);
+        try
+        {
+            if (await FindPageAsync(port, cts.Token) is not { WebSocketDebuggerUrl: { } socketUrl })
+                return false;
+            await using var page = await Cdp.ConnectAsync(socketUrl, cts.Token);
+            var result = await page.CallAsync("Page.navigate", new { url }, cts.Token);
+            // A navigation that fails outright (bad address, offline) comes back with errorText.
+            return !(result.ValueKind == JsonValueKind.Object && result.TryGetProperty("errorText", out _));
+        }
+        catch (Exception ex) when (IsEdgeGone(ex, ct))
+        {
+            return false;
+        }
+    }
 
     /// <summary>Tiles the page (see <see cref="TileScript"/>), or with <paramref name="muted"/> null, untiles it.</summary>
     /// <param name="fit">Fill the tile with the video; null keeps what it was (a new tile starts fitted).</param>
@@ -328,6 +350,23 @@ internal static class EdgeDevTools
             await using var page = await Cdp.ConnectAsync(socketUrl, cts.Token);
             var result = await page.CallAsync("Runtime.evaluate", new { expression, returnByValue = true }, cts.Token);
             return result.TryGetProperty("result", out var remote) && remote.TryGetProperty("value", out var value) ? value : null;
+        }
+        catch (Exception ex) when (IsEdgeGone(ex, ct))
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Every target in the profile as "type url", for troubleshooting. Null if Edge isn't answering.</summary>
+    public static async Task<IReadOnlyList<string>?> PageUrlsAsync(int port, CancellationToken ct)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(Timeout);
+        try
+        {
+            var targets = await Http.GetFromJsonAsync<List<Target>>($"http://127.0.0.1:{port}/json/list", cts.Token);
+            return targets?.Where(t => !t.Url.StartsWith("chrome-extension:", StringComparison.OrdinalIgnoreCase))
+                .Select(t => $"{t.Type} {(t.Url.Length > 120 ? t.Url[..120] : t.Url)}").ToList();
         }
         catch (Exception ex) when (IsEdgeGone(ex, ct))
         {
